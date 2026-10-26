@@ -1,6 +1,8 @@
 """
 Stage 7: two variants of the stage-3 moves (15-minute bars), per bucket of tmp/buckets.
 
+Round 9: superseded. The main window (s2_events.window) keeps the games, so F7 now uses the
+stage-3 jumps; the modes below were run under the old 6 h end cut.
 mode "sports"  sports and esports markets only (tag regex SPORTS), VWAP basis, with a cut
                suited to games. The probe (p7_probe.py) showed that for game markets
                end_date is about the kickoff, trading peaks in the hour after it, and the
@@ -90,7 +92,7 @@ def process(k, end_ts, mode, keep):
         bars["cut"] = bars.market.map(res).values
         basis = "vwap"
     else:
-        bars["cut"] = bars.market.map(s2.cut_times(bars, end_ts)).values
+        bars = s2.window(bars)
         basis = "mean" if mode == "basis" else "vwap"
     bars = bars[bars.t_close <= bars.cut].reset_index(drop=True)
     same = np.r_[False, bars.market.values[1:] == bars.market.values[:-1]]

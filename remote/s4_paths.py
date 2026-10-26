@@ -3,7 +3,7 @@ Stage 4: fixed-length price paths for motif/discord search, and up/down moves.
 
 Modes
   moves <buckets...>     non-recurring markets (tmp/buckets): for every big move
-                         (VWAP basis, 15-min bars, |move| >= 0.4, same definition as s3),
+                         (VWAP basis, 15-min bars, jumps of >= 10 points, same window as s3),
                          the YES price at the end of 55 five-minute steps, from 35 min
                          before to 4 h after the move bar closes (forward-filled VWAP).
                          -> tmp/paths/moves_<k>.parquet (market, t_close, p0..p54)
@@ -11,8 +11,9 @@ Modes
                          evenly spaced points across its trading window (the last 5 min,
                          15 min, 1 h, 4 h or day before end_date, by tag), forward-filled.
                          -> tmp/paths/ud_<k>.parquet (market, dur_min, n_window, p0..p29)
-  udmoves <buckets...>   up/down moves on 1-min bars via s3 (no 6 h resolution pad,
-                         next trades within 5 min) -> tmp/events3/60/
+  udmoves <buckets...>   up/down moves on 1-min bars via s3 (cut only at the settle moment,
+                         LIFE_CUT = 0: the 10% window drops 70% of these markets' jumps and
+                         changes the results, round 9; next trades within 5 min) -> tmp/events3/60/
   cx, cxmoves            the same as ud / udmoves on the full crypto set (tmp/buckets_cx,
                          from s1x_bucket.py) -> tmp/paths/cx_<k>.parquet, tmp/events_cx/60/
 Usage: python s4_paths.py <mode> <bucket> [<bucket> ...]
@@ -30,6 +31,7 @@ import s2_events as s2
 import s3_events as s3
 
 STEP = 300
+MIN_PTS = 0.10                       # a price jump: at least 10 points
 OFFSETS = np.arange(-7, 48)          # 5-min steps relative to the move bar close
 N_UD = 30
 DUR = {"5M": 5, "15M": 15, "1H": 60, "4h": 240, "daily": 1440}
@@ -64,7 +66,7 @@ def move_paths(k, end_ts):
     e, _ = s3.process(k, end_ts, 900)
     if e is None:
         return None
-    e = e[e.move.abs() >= 0.4]
+    e = e[(s2.sigmoid(s2.logit(e.y_pre) + e.move) - e.y_pre).abs() >= MIN_PTS]
     d = load_trades(s2.SRC, k)
     d["bin"] = d.ts // STEP
     d["pv"] = d.yes * d.usd
@@ -125,7 +127,7 @@ def main(mode, buckets):
         tag = mode
     if mode == "udmoves":
         s2.SRC = UD_SRC
-        s2.RES_PAD = 0
+        s2.LIFE_CUT = 0
         s3.ENTRY_MAX = 300
         s3.main(60, buckets)
         return

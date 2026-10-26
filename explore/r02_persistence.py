@@ -3,7 +3,7 @@ Round 2: do big price moves overshoot, and does it depend on how they were made?
 
 Input: the moves table from remote/s2_events.py (local_data/r02_events/e*.parquet), the
 markets file (final outcomes) and tags. Uses the VWAP price basis (robust to a sweep's
-extreme last fill) and moves of at least 0.4 log-odds.
+extreme last fill) and price jumps: moves of at least MIN_PTS (10 probability points).
 
 Metric (no horizon, no ratios of small numbers): the final outcome (1 if YES won, else 0,
 markets with a clear 0/1 resolution only) is compared with the price right after the move.
@@ -27,7 +27,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-MIN_MOVE = 0.4
+MIN_PTS = 0.10       # a price jump: at least 10 points (round 9; was 0.4 in log-odds)
 BASIS = "vwap"
 CATS = [  # first match wins
     ("esports", "esports|counter-strike|dota|league-of-legends|valorant"),
@@ -107,7 +107,7 @@ def groupings(e):
 
 def main():
     e, base = load()
-    big = e[e.move.abs() >= MIN_MOVE].copy()
+    big = e[e.absdp >= MIN_PTS].copy()
     m, lo, hi = share(big)
     print(f"{len(big):,} moves in {big.market.nunique():,} markets; overshoot share {m:.3f} [{lo:.3f}, {hi:.3f}]")
     rows = [dict(grouping="all", level="all", scope="all", share=m, lo=lo, hi=hi, moves=len(big),

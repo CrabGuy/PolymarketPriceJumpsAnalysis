@@ -7,25 +7,30 @@ each one against how the market finally resolved.
 **Read the report: [report/REPORT.md](report/REPORT.md)**
 
 ## Main results
-- **Big moves overshoot by about a third.** Judged by the final outcome, about two thirds of
-  a sharp jump is justified; the rest is taken back later. This holds in every year and
-  almost every category.
-- **The number of traders behind a move matters most.** A jump made by a single trader goes
-  about a third too far, and the next trades undo most of it within minutes. A jump made by
-  four or more traders goes less than a fifth too far.
-- **No easy money.** Once the bid-ask spread is paid, betting against big moves has no
-  reliable edge.
+A price jump here is a 15-minute average price at least 10 points away from the previous
+one, in the middle of a market's life (the first and last 10% are left out).
+- **Price jumps overshoot by over a third.** Judged by the final outcome, just under two
+  thirds of a jump is justified; the rest is taken back later. This holds in every year and
+  every category.
+- **The number of traders behind a jump matters most.** A jump made by a single trader goes
+  about 40% too far, and the next trades undo most of it within minutes. A jump made by four
+  or more traders goes less than a quarter too far, and that part lingers for hours.
 - **Lone pushes happen where the order book is thin**, so that a few dollars can move the
   price.
-- In races with several candidates, a crowd's move that the other candidates offset is right
-  at once. Sports and esports prices are close to right by the next trades, and the crypto
-  "up or down" markets show the same pattern within seconds.
+- **Betting against jumps:** after the bid-ask spread, betting against lone pushes loses
+  money; betting against crowd jumps and jumps with over $1,000 behind them leaves a small
+  edge before fees.
+- In races with several candidates, a crowd's jump that the other candidates offset is right
+  at once. Sports and esports show the same pattern as other markets, and the crypto "up or
+  down" markets show it within seconds.
+- Tentatively: what the next trades do to a jump tells a sensible jump from noise better than
+  anything known at the moment of the jump.
 
 ## What's in here
 | Folder | Contents |
 |---|---|
 | `report/` | `REPORT.md` (the full write-up: findings, method, parameters, glossary) and its plots |
-| `remote/` | Extraction scripts that run next to the raw data: regroup trades by market, build 15-minute slots, find big moves, and write compact tables |
+| `remote/` | Extraction scripts that run next to the raw data: regroup trades by market, build 15-minute slots, find price jumps, and write compact tables |
 | `explore/` | Analysis scripts that run on those tables, one per finding, plus the figure scripts (`report_figures.py`, `report_style.py`) |
 
 Section 8 of the report maps every finding to its scripts, and section 6 lists every
@@ -40,9 +45,10 @@ event, `neg_risk`) and `data/market_tags.csv` (market tags).
 1. **Extraction** (`remote/`, Python 3.8+ with numpy, pandas, pyarrow). In order:
    `s1_bucket.py` (regroup trades into 32 buckets by market; `s1u_bucket.py` and
    `s1x_bucket.py` do the same for the crypto up/down markets), `s2_events.py`,
-   `s3_events.py 900|300|3600`, `s4_paths.py moves|cx|cxmoves`, `s6_micro.py`,
-   `s7_events.py sports`, then `s8_wallets.py` (its input pairs come from
-   `explore/r08_pairs.py`) and `p7_extract.py <market id>` for the example market. Each script's
+   `s3_events.py 900|300|3600`, `s4_paths.py moves|cx|cxmoves`, `s6_micro.py`, then
+   `s8_wallets.py` (its input pairs come from `explore/r08_pairs.py`) and
+   `p7_extract.py <market id>` for the example market. `s7_events.py basis` and
+   `s9_window.py` feed the definition checks only. Each script's
    docstring gives its inputs, outputs and usage. Outputs go to `tmp/`.
 2. **Analysis** (`explore/`, Python 3.10+ with numpy, pandas, scipy, matplotlib, stumpy).
    Copy the extraction outputs into `local_data/` (folder names are in each script's
@@ -50,7 +56,8 @@ event, `neg_risk`) and `data/market_tags.csv` (market tags).
    `r03_robustness.py`, `r04_types.py`, `r05_event_markets.py`, `r08_pairs.py` and
    `r07_siblings.py`, `r06_fade.py`, `r08_fade_robust.py`, `r06_concentration.py`,
    `r07_sports.py`, `r05_updown.py`, `r04_motifs.py`, `r04_btc_chain.py`, `r05_crypto_mp.py`,
-   and finally `report_stats.py` and `report_figures.py` (writes `report/plots/`).
+   `r10_information.py`, and finally `report_stats.py` and `report_figures.py` (writes
+   `report/plots/`). The `r09_*.py` scripts compare jump thresholds and start/end cuts.
 
 ## Credits
 Plot theme: [Rosé Pine Dawn for matplotlib](https://github.com/h4pZ/rose-pine-matplotlib) (MIT license, see `explore/LICENSE-rose-pine.txt`).

@@ -1,9 +1,12 @@
 """
 Stage 2: per bucket, find every sizeable price move and measure whether it persists.
 
-For each market: 15-min bars from the bucket rows, then the resolution run-up is cut
-(everything from 6 h before the price leaves [0.05, 0.95] for good). A move is a bar
-whose price (log-odds) differs from the previous active bar's by at least MIN_MOVE.
+For each market: 15-min bars from the bucket rows, then only the middle of the market's life
+is kept (window()): its life runs from the first bar to the settle moment (the last bar
+inside [0.05, 0.95] when the market ends outside the band, else its last bar), and the first
+and last LIFE_CUT of it are left out (round 9; was: the last 6 h before the settle moment).
+A move is a bar whose price (log-odds) differs from the previous active bar's by at least
+MIN_MOVE; the analysis keeps moves of 10 points or more (price jumps).
 (Round 8: the minimum of 100 trades per market, the end_date cut, the limit of 2 h since
 the previous active bar and the [0.05, 0.95] band on the starting price were tested one by
 one and removed: none changed the results by more than 2 points; explore/r08_filters.py.)
@@ -37,8 +40,7 @@ MIN_MOVE = 0.15
 MAX_GAP_BARS = 10**9           # no limit on the time since the previous active bar (was 8 = 2 h)
 EDGE = 0.05                    # "settled" = the price left [EDGE, 1 - EDGE] for good
 PRE_EDGE = 0.0                 # no band on the price before the move (was EDGE)
-END_CUT = False                # bars after end_date are kept (was True)
-RES_PAD = 6 * 3600
+LIFE_CUT = 0.10                # share of the life left out at each end (was: the last 6 h)
 HORIZONS = {"1h": 3600, "6h": 6 * 3600, "24h": 24 * 3600}
 
 
@@ -47,18 +49,22 @@ def logit(p):
     return np.log(p / (1 - p))
 
 
-def cut_times(bars, end_ts):
-    """Per market: last allowed bar-close time (resolution run-up; end_date if END_CUT)."""
-    cut = {}
-    for m, g in bars.groupby("market", sort=False):
-        y = g.yes.values
-        t = g.t_close.values
-        lim = end_ts.get(m, np.inf) if END_CUT else np.inf
-        inside = (y >= EDGE) & (y <= 1 - EDGE)
-        if len(y) and not inside[-1] and inside.any():
-            lim = min(lim, t[np.flatnonzero(inside)[-1]] - RES_PAD)
-        cut[m] = lim
-    return pd.Series(cut)
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def window(bars):
+    """Keep the bars inside each market's window (see the docstring); sets `start` and `cut`
+    (the window's first and last allowed bar close; later prices stop at `cut`)."""
+    t, m = bars.t_close, bars.market
+    inside = (bars.yes >= EDGE) & (bars.yes <= 1 - EDGE)
+    first, last = t.groupby(m).transform("min"), t.groupby(m).transform("max")
+    last_in = t.where(inside).groupby(m).transform("max")
+    ends_out = ~inside.groupby(m).transform("last").astype(bool)
+    end = np.where(ends_out & last_in.notna(), last_in, last)
+    pad = LIFE_CUT * (end - first)
+    bars["start"], bars["cut"] = first + pad, end - pad
+    return bars[(t >= bars.start) & (t <= bars.cut)].reset_index(drop=True)
 
 
 def process(k, end_ts):
@@ -81,9 +87,7 @@ def process(k, end_ts):
     bars["vwap"] = np.where(bars.usd > 0, bars.pv / bars.usd.where(bars.usd > 0), bars.yes)
     bars["t_close"] = (bars.bar + 1) * BAR
 
-    cut = cut_times(bars, end_ts)
-    bars["cut"] = bars.market.map(cut).values
-    bars = bars[bars.t_close <= bars.cut].reset_index(drop=True)
+    bars = window(bars)
 
     # Two price bases: the bar's last trade, and its volume-weighted average (robust to a
     # sweep's extreme last fill). Moves and later prices use the same basis.

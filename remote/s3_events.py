@@ -1,7 +1,7 @@
 """
 Stage 3: round-3 moves with tradability, the mover's identity, and a random baseline.
 
-Same bars, cuts and moves as s2_events.py (imported from there), VWAP basis only, with a
+Same bars, window and moves as s2_events.py (imported from there), VWAP basis only, with a
 configurable bar size. Extra columns per move:
   entry_vwap   volume-weighted YES price of the first ENTRY_N trades after the bar closes
                (at most 1 h later): the next price an outsider could have traded at
@@ -49,9 +49,7 @@ def process(k, end_ts, bar_s):
                  takers=("taker", "nunique"), taker_first=("taker", "first")).reset_index()
     bars["vwap"] = np.where(bars.usd > 0, bars.pv / bars.usd.where(bars.usd > 0), bars.yes)
     bars["t_close"] = (bars.bar + 1) * bar_s
-    cut = s2.cut_times(bars, end_ts)
-    bars["cut"] = bars.market.map(cut).values
-    bars = bars[bars.t_close <= bars.cut].reset_index(drop=True)
+    bars = s2.window(bars)
 
     saved = s2.MAX_GAP_BARS
     s2.MAX_GAP_BARS = max(1, int(round(saved * 900 / bar_s)))   # rescaled to the bar size (no limit since round 8)

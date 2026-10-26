@@ -10,7 +10,7 @@ Input: local_data/r03_events/<bar>/e*.parquet and r*.parquet from remote/s3_even
 3. Dynamics: overshoot remaining at close, entry, +1 h, +6 h, +24 h (same moves throughout).
 4. Wallets: concentration of single-trader moves, and persistence of a wallet's overshoot
    between the first and second half of its history (vs a shuffled null).
-5. Definition: bar size 5/15/60 min and move threshold 0.25/0.4/0.6.
+5. Definition: bar size 5/15/60 min and jump threshold 5/10/15 points.
 6. Category baselines: calibration measured per category at random moments (crypto YES is
    about 8 points overpriced, sports about 0). Overshoot, the takers effect, up/down
    asymmetry and the time profile are recomputed with it. These are the reported numbers.
@@ -24,10 +24,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import category, outcomes, sigmoid  # noqa: E402
+from r02_persistence import MIN_PTS, category, outcomes, sigmoid  # noqa: E402
 
 BARS = (300, 900, 3600)
-MIN_MOVE = 0.4
 EV = "local_data/r03_events"
 
 
@@ -86,7 +85,7 @@ def main():
     print("calibration error (outcome - p), random moments vs pre-move, by price:")
     print(pd.DataFrame({"random": base_rand, "pre-move": base_pre}).dropna().iloc[1:-1:2].round(3).to_string())
 
-    big = e[e.move.abs() >= MIN_MOVE].copy()
+    big = e[e.absdp >= MIN_PTS].copy()
     big["os_close_pre"] = overshoot(big, big.p_close, base_pre)
     big["os_close"] = overshoot(big, big.p_close, base_rand)
     print(f"\n[1] overshoot share, pre-move baseline {ratio(big, 'os_close_pre'):.3f} | random baseline {ratio(big, 'os_close'):.3f}")
@@ -147,8 +146,8 @@ def main():
     rows = []
     for bar in BARS:
         eb = e if bar == 900 else load(bar)
-        for thr in (0.25, 0.4, 0.6):
-            x = eb[eb.move.abs() >= thr].copy()
+        for thr in (0.05, 0.10, 0.15):
+            x = eb[eb.absdp >= thr].copy()
             x["os"] = overshoot(x, x.p_close, base_rand)
             r = {"bar_min": bar // 60, "threshold": thr, "moves": len(x), "markets": x.market.nunique(), "all": ratio(x, "os")}
             for tg, s in x.groupby("tg", observed=True):

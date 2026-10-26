@@ -2,9 +2,9 @@
 Report: extra descriptive numbers for report/REPORT.md (no new analysis, only counts and
 shares on tables the rounds already produced).
 
-  1. How many event markets have big moves ("spikes"), overall and by category, and how
+  1. How many event markets have price jumps ("spikes"), overall and by category, and how
      the moves are spread across markets.
-  2. Who makes them: share of big moves by number of distinct takers, money in the bar.
+  2. Who makes them: share of price jumps by number of distinct takers, money in the bar.
   3. How often the next trades undo most of a move, by number of takers.
   4. Up/down crypto markets: how many big 1-minute moves and markets.
 
@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import category  # noqa: E402
+from r02_persistence import MIN_PTS, category  # noqa: E402
 
 
 def logit(p):
@@ -30,20 +30,21 @@ def logit(p):
 
 
 def main():
-    # 1. spikes per market (VWAP basis, |move| >= 0.4, any resolution)
+    # 1. price jumps per market (VWAP basis, >= 10 points, any resolution)
     cov = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r02_events/m*.parquet")])
-    e = pd.concat([pd.read_parquet(f, columns=["basis", "market", "move", "takers", "usd"])
+    e = pd.concat([pd.read_parquet(f, columns=["basis", "market", "y_pre", "move", "takers", "usd"])
                    for f in glob.glob("local_data/r02_events/e*.parquet")])
-    big = e[(e.basis == "vwap") & (e.move.abs() >= 0.4)]
+    e = e[e.basis == "vwap"]
+    big = e[(1 / (1 + np.exp(-(logit(e.y_pre) + e.move))) - e.y_pre).abs() >= MIN_PTS]
     per = big.market.value_counts()
     tags = pd.read_csv("local_data/market_tags.csv", dtype=str)
     cat = pd.Series(category(tags.tags).values, index=tags.market_id.astype(int).values)
     cat = cat[~cat.index.duplicated()]
     cov["cat"] = cov.market.map(cat).fillna("other")
     cov["big"] = cov.market.map(per).fillna(0)
-    print(f"markets with trades: {len(cov):,}; with >= 1 big move: {(cov.big > 0).sum():,} "
-          f"({(cov.big > 0).mean():.1%}); big moves: {len(big):,}")
-    print(f"big moves per market with any: median {per.median():.0f}, mean {per.mean():.1f}, "
+    print(f"markets with trades: {len(cov):,}; with >= 1 price jump: {(cov.big > 0).sum():,} "
+          f"({(cov.big > 0).mean():.1%}); price jumps: {len(big):,}")
+    print(f"price jumps per market with any: median {per.median():.0f}, mean {per.mean():.1f}, "
           f"90th pct {per.quantile(.9):.0f}; markets with 10+: {(per >= 10).sum():,}; "
           f"top 10% of these markets hold {per.sort_values(ascending=False).head(len(per) // 10).sum() / per.sum():.0%} of moves")
     cov["moves_per_100_bars"] = cov.big / cov.active_bars * 100
@@ -58,9 +59,9 @@ def main():
         s = cov[(cov.trades >= lo) & (cov.trades < hi)]
         print(f"  markets with {lo}-{hi} trades: {len(s):,}, with a spike {(s.big > 0).mean():.1%}")
 
-    # 2. who makes the big moves (clean-outcome sample used for every finding)
+    # 2. who makes the price jumps (clean-outcome sample used for every finding)
     b = pd.read_parquet("local_data/r03_big_moves_900.parquet")
-    print(f"\nanalysis sample: {len(b):,} big moves in {b.market.nunique():,} markets")
+    print(f"\nanalysis sample: {len(b):,} price jumps in {b.market.nunique():,} markets")
     print("share by takers:", b.tg.value_counts(normalize=True).round(3).to_dict())
     print("median $ in the move's bar by takers:", b.groupby("tg", observed=True).usd.median().round(0).to_dict())
     print(f"median $ overall {b.usd.median():.0f}; share under $100 {(b.usd < 100).mean():.1%}; "

@@ -2,8 +2,10 @@
 Round 5, part 4: momentum in crypto up/down markets, explored fully.
 
 Input (remote/s1x_bucket.py -> s4_paths.py cx / cxmoves):
-  local_data/r05/events_cx/e*.parquet   big 1-min moves (VWAP basis, |move| >= 0.4, no
-                                        resolution pad, next trades within 5 min) in every
+  local_data/r05/events_cx/e*.parquet   1-min price jumps (VWAP basis, >= 10 points, cut
+                                        only at the settle moment: the 10% window of the
+                                        event markets changes these results, see
+                                        explore/r09_crypto.py; next trades within 5 min) in every
                                         bitcoin/ether/solana/xrp 15-min market and every
                                         bitcoin/ether 5-min and 1-hour market
   local_data/r05/cx_paths/cx_*.parquet  each market's YES price at 30 evenly spaced times
@@ -27,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import outcomes, sigmoid  # noqa: E402
+from r02_persistence import MIN_PTS, outcomes, sigmoid  # noqa: E402
 from r03_robustness import BINS  # noqa: E402
 
 OUT = "local_data/r05/"
@@ -92,7 +94,7 @@ def logit(p):
     return np.log(p / (1 - p))
 
 
-def load_moves(info):
+def load_moves(info, min_pts=MIN_PTS, min_logit=0.0):
     e = pd.concat([pd.read_parquet(f) for f in glob.glob(EVENTS)], ignore_index=True)
     e = e.merge(info, on="market")
     e["outcome"] = e.market.map(outcomes())
@@ -117,7 +119,7 @@ def load_moves(info):
 
     e["oc"] = osh(e.p_close)
     e["oe"] = osh(e.entry_vwap)
-    big = e[(e.move.abs() >= 0.4) & e.oc.notna()].copy()
+    big = e[(e.absdp >= min_pts) & (e.move.abs() >= min_logit) & e.oc.notna()].copy()
     return big
 
 
@@ -173,9 +175,9 @@ def main():
             lambda x: share(x, "oc") if len(x) >= 300 else np.nan).unstack()
         print(f"\n[2] 15-min markets by {name} (overshoot at close; columns = takers):")
         print(tabs[name].round(3).to_string())
-    big["size"] = pd.cut(big.move.abs(), [0.4, 0.6, 1.0, 2.0, np.inf], labels=["0.4-0.6", "0.6-1", "1-2", ">2"])
+    big["size"] = pd.cut(big.absdp, [0.1, 0.15, 0.25, 0.4, 1], labels=["10-15", "15-25", "25-40", ">40"])
     tabs["size"] = big.groupby(["size", "tg"], observed=True).apply(share, "oc").unstack()
-    print("\n[2] by move size (log-odds):\n", tabs["size"].round(3).to_string())
+    print("\n[2] by jump size (points):\n", tabs["size"].round(3).to_string())
     # 3. confirmation
     paths = load_paths(info)
     big = confirm(big, paths)

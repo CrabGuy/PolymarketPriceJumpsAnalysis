@@ -2,8 +2,8 @@
 Stage 6: market microstructure per market, and side-specific execution prices per big move.
 
 Input: tmp/buckets (event-market trades, stage 1) and tmp/events3/900/e<k>.parquet (the
-big 15-min moves of stage 3). Per market, only trades before the stage-2 cut (end date and
-resolution run-up) are used.
+15-min moves of stage 3). Per market, only trades inside the stage-2 window (the middle of
+the market's life) are used.
 
 Per market -> tmp/micro/k<k>.parquet:
   trades, usd, takers        totals before the cut
@@ -86,9 +86,10 @@ def group_ols(m, x, y, min_n):
 
 
 def market_stats(d, bars):
-    cut = bars.groupby("market").cut.first()
-    dc = d[d.ts.values < d.market.map(cut).fillna(-1).values]
-    res = pd.DataFrame(index=cut.index)
+    w = bars.groupby("market")[["start", "cut"]].first()
+    lo, hi = d.market.map(w.start).values - BAR, d.market.map(w.cut).values
+    dc = d[(d.ts.values >= lo) & (d.ts.values < hi)]       # trades in the window's bars
+    res = pd.DataFrame(index=w.index)
     tot = dc.groupby("market").agg(trades=("usd", "size"), usd=("usd", "sum"))
     res = res.join(tot).join(concentration(dc))
     res["bars"] = bars.groupby("market").size()
@@ -199,8 +200,7 @@ def process(k, end_ts):
                  buy=("buy", "sum"), sell=("sell", "sum")).reset_index()
     bars["vwap"] = np.where(bars.usd > 0, bars.pv / bars.usd.where(bars.usd > 0), bars.yes)
     bars["t_close"] = (bars.bar + 1) * BAR
-    bars["cut"] = bars.market.map(s2.cut_times(bars, end_ts)).values
-    bars = bars[bars.t_close <= bars.cut].reset_index(drop=True)
+    bars = s2.window(bars)
     ms = market_stats(d, bars)
     ef = f"tmp/events3/900/e{k:02d}.parquet"
     xp = None

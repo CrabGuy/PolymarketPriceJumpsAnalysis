@@ -2,13 +2,15 @@
 Round 4, part 2A: recurring reaction shapes (motifs) and anomalous reactions (discords)
 after big moves, across all non-recurring markets.
 
-Each big move (15-min bars, VWAP, |move| >= 0.4) gives a 55-point window of log-odds:
+Each price jump (15-min bars, VWAP, >= 10 points) gives a 55-point window of log-odds:
 5-min steps from 35 min before the move bar closes to about 4 h after
 (remote/s4_paths.py, mode "moves"). On a random sample of windows, the matrix profile of
 the set is computed: each window's z-normalised Euclidean distance (the stumpy distance)
 to its nearest neighbour **from a different event** (same-event matches would be trivial
 or mechanically linked). The distance code is checked against stumpy.mass.
 
+Only jumps with at least 6 h of the market's window left (round 9: the window now scales
+with the market, so short markets would otherwise reach their resolution inside the path).
 Trivial matches: windows that are flat apart from the jump (illiquid, no later trades)
 match each other exactly, so windows need price changes in at least 8 of the 47
 post-move steps.
@@ -84,6 +86,10 @@ def surrogate(L, rng):
 def load(n_sample):
     p = pd.concat([pd.read_parquet(f) for f in glob.glob(f"{PATHS}/moves_*.parquet")], ignore_index=True)
     t = pd.read_parquet("local_data/r03_big_moves_900.parquet")
+    # the 4 h path must stay inside the market's window: otherwise short markets (games) run
+    # into their resolution after the jump, and those paths all match each other trivially.
+    # ret_6h is set only when the window has 6 h left after the jump (remote/s2_events.py).
+    t = t[t.ret_6h.notna()]
     info = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "event_id"])
     info = info[pd.to_numeric(info.id, errors="coerce").notna()]
     ev = pd.Series(info.event_id.values, index=info.id.astype(int).values)
