@@ -1,0 +1,6 @@
+local_data/
+data/
+tmp/
+__pycache__/
+*.pyc
+.venv/
