@@ -4,7 +4,7 @@ When a Polymarket price jumps, how much of the jump is real? This project looks 
 sharp price jump in 766 million Polymarket trades (November 2022 to May 2026) and checks
 each one against how the market finally resolved.
 
-**Read the report: [report/REPORT.md](report/REPORT.md)**
+**Read the report: [report/REPORT.pdf](report/REPORT.pdf)** (also as [Markdown](report/REPORT.md))
 
 ## Main results
 A price jump here is a 15-minute average price at least 10 points away from the previous
@@ -29,7 +29,7 @@ one, in the middle of a market's life (the first and last 10% are left out).
 ## What's in here
 | Folder | Contents |
 |---|---|
-| `report/` | `REPORT.md` (the full write-up: findings, method, parameters, glossary) and its plots |
+| `report/` | `REPORT.pdf` and `REPORT.md` (the full write-up: findings, method, parameters, glossary) and its plots |
 | `remote/` | Extraction scripts that run next to the raw data: regroup trades by market, build 15-minute slots, find price jumps, and write compact tables |
 | `explore/` | Analysis scripts that run on those tables, one per finding, plus the figure scripts (`report_figures.py`, `report_style.py`) |
 

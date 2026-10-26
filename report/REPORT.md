@@ -2,6 +2,8 @@
 
 *An exploratory analysis of 766 million Polymarket trades, November 2022 to May 2026*
 
+Code and plots: [github.com/CrabGuy/PolymarketPriceJumpsAnalysis](https://github.com/CrabGuy/PolymarketPriceJumpsAnalysis)
+
 ---
 
 ## Contents
