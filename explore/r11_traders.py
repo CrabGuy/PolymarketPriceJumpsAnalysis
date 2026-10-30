@@ -24,6 +24,7 @@ import pandas as pd
 
 sys.path.insert(0, "explore")
 from r05_siblings import boot_share  # noqa: E402
+from r02_persistence import N_RESAMPLES  # noqa: E402
 
 COUNTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 50, np.inf]
 COUNT_LABELS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11-20", "21-50", "over 50"]
@@ -65,7 +66,7 @@ def accuracy(b):
             n = x.groupby("market").size()
             rng = np.random.default_rng(3)
             bs = []
-            for _ in range(200):
+            for _ in range(N_RESAMPLES):
                 i = rng.integers(0, len(m), len(m))
                 bs.append(m.right.values[i].sum() / n.values[i].sum())
             rows.append({"by": key, "group": str(g), "jumps": len(x), "right": x.right.mean(),

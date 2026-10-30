@@ -36,8 +36,9 @@ import pandas as pd
 
 sys.path.insert(0, "explore")
 from r05_siblings import GROUPS, boot_share, share  # noqa: E402
+from r02_persistence import OFFSET_HI, OFFSET_LO, TG_EDGES, TG_LABELS  # noqa: E402
 
-SRC = "local_data/r11/w8/"           # round 11 rerun (was local_data/r07/w8b/)
+SRC = "local_data/r12/w8/"
 OUT = "local_data/r07/"
 VERSIONS = {"all trades": "p_close", "without scripts' fast trades": "p_close_noauto10",
             "users only": "p_close_users10", "without scripts (cut 0.05)": "p_close_noauto05",
@@ -93,7 +94,7 @@ def moves():
     out = {}
     for k, name in enumerate(VERSIONS):
         offset = -x[f"d{k}"] / dp
-        out[name] = base.assign(group=np.select([x[f"n{k}"] == 0, offset < 0.25, offset < 0.75], GROUPS[:3], GROUPS[3]))
+        out[name] = base.assign(group=np.select([x[f"n{k}"] == 0, offset < OFFSET_LO, offset < OFFSET_HI], GROUPS[:3], GROUPS[3]))
     return out
 
 
@@ -140,7 +141,7 @@ def main():
     mk = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "neg_risk"])
     nrm = pd.Series(mk.neg_risk.values, index=pd.to_numeric(mk.id, errors="coerce"))
     bm["neg_risk"] = bm.market.map(nrm[~nrm.index.duplicated()])
-    bm["tg"] = pd.cut(bm.takers, [0, 1, 3, np.inf], labels=["1", "2-3", "4+"]).astype(str)
+    bm["tg"] = pd.cut(bm.takers, TG_EDGES, labels=TG_LABELS).astype(str)
     f2 = bm.groupby(["neg_risk", "tg"]).apply(lambda x: pd.Series({
         "moves": len(x), "overshoot": x.overshoot.sum() / x.absdp.sum()})).reset_index()
     print("\nF2 by neg-risk:")

@@ -4,7 +4,7 @@ Stage 3: round-3 moves with tradability, the mover's identity, and a random base
 Same bars, window and moves as s2_events.py (imported from there), VWAP basis only, with a
 configurable bar size. Extra columns per move:
   entry_vwap   volume-weighted YES price of the first ENTRY_N trades after the bar closes
-               (at most 1 h later): the next price an outsider could have traded at
+               (at most ENTRY_MAX later): the next price an outsider could have traded at
   entry_n, entry_delay   how many trades that used, and seconds to the first one
   taker1       hash of the only taker when the move bar had exactly one, else 0
 Also, for the main bar size (s2.BAR) only: a 5% random sample of all active bars (market, t_close, vwap)
@@ -24,8 +24,8 @@ import pandas as pd
 
 import s2_events as s2
 
-ENTRY_N = 8                    # round 11, elbow (was 5)
-ENTRY_MAX = 3600
+ENTRY_N = 7                    # next trades: how many (elbow)
+ENTRY_MAX = 2700               # next trades: within this many seconds (elbow)
 SAMPLE = 0.05
 OUT_ROOT = "tmp/events3"
 

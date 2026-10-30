@@ -9,11 +9,16 @@ trades on the bettor's side; n_taker = return per $ net of the usual mispricing)
 95% intervals from resampling markets (300). Output local_data/r08_fade_robust.csv.
 Usage: python explore/r08_fade_robust.py
 """
+import sys
+
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "explore")
+from r02_persistence import MONEY_X, N_RESAMPLES, TRIM  # noqa: E402
 
-def boot(x, col, n=300, seed=0):
+
+def boot(x, col, n=N_RESAMPLES, seed=0):
     g = x.groupby("market")[col].agg(["sum", "size"])
     a, c = g["sum"].values, g["size"].values
     i = np.random.default_rng(seed).integers(0, len(g), size=(n, len(g)))
@@ -23,9 +28,9 @@ def boot(x, col, n=300, seed=0):
 
 def main():
     t = pd.read_parquet("local_data/r06/r06_fade_moves.parquet")
-    lo_c, hi_c = t.n_taker.quantile([0.01, 0.99])
+    lo_c, hi_c = t.n_taker.quantile([TRIM, 1 - TRIM])
     t["trim"] = t.n_taker.clip(lo_c, hi_c)
-    t["money"] = pd.cut(t.usd, [0, 100, 1000, np.inf], labels=["<$100", "$100-1k", ">$1k"]).astype(str)
+    t["money"] = pd.cut(t.usd, [0, MONEY_X, np.inf], labels=["below", "above"]).astype(str)
     rows = []
     for split, col in (("takers", "tg"), ("money in bar", "money")):
         for k, x in list(t.groupby(col)) + [("all", t)]:

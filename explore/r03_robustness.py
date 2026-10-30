@@ -4,13 +4,13 @@ single trader's big push).
 
 Input: local_data/r03_events/<bar>/e*.parquet and r*.parquet from remote/s3_events.py.
 1. Baseline: calibration at random active moments (5% sample of bars) vs before moves.
-2. Tradability: overshoot remaining at the next tradable price (VWAP of the first 8 trades
-   after the bar closes) and the raw profit of fading the move there, held to resolution:
+2. Tradability: overshoot remaining at the next tradable price (VWAP of the first N_NEXT trades
+   after the slot closes) and the raw profit of fading the move there, held to resolution:
    sign(move) * (p_entry - outcome) per share, in cents (no fees, no baseline).
 3. Dynamics: overshoot remaining at close, entry, +1 h, +6 h, +24 h (same moves throughout).
 4. Wallets: concentration of single-trader moves, and persistence of a wallet's overshoot
    between the first and second half of its history (vs a shuffled null).
-5. Definition: bar size 5/30/60 min and jump threshold 8/13/18 points.
+5. Definition: slot of 5 / 30 / 60 min and jump threshold of 11 / 16 / 21 points.
 6. Category baselines: calibration measured per category at random moments (crypto YES is
    about 8 points overpriced, sports about 0). Overshoot, the takers effect, up/down
    asymmetry and the time profile are recomputed with it. These are the reported numbers.
@@ -24,10 +24,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import BAR, MIN_PTS, category, outcomes, sigmoid  # noqa: E402
+from r02_persistence import (BAR, CLIP, MIN_PTS, TG_EDGES, TG_LABELS, WALLET_MIN, category,  # noqa: E402
+                             N_BINS, N_RESAMPLES, outcomes, random_slots, sigmoid)
 
 BARS = (300, BAR, 3600)
-THRESHOLDS = (0.08, MIN_PTS, 0.18)
+THRESHOLDS = (MIN_PTS - 0.05, MIN_PTS, MIN_PTS + 0.05)   # robustness check around the threshold
 EV = "local_data/r03_events"
 
 
@@ -42,11 +43,11 @@ def load(bar):
     tags = pd.read_csv("local_data/market_tags.csv", dtype=str)
     e["cat"] = e.market.map(pd.Series(category(tags.tags).values, index=tags.market_id.astype(int).values)).fillna("other")
     e["year"] = pd.to_datetime(e.t_close, unit="s").dt.year
-    e["L_pre"] = np.log(np.clip(e.y_pre, .01, .99) / (1 - np.clip(e.y_pre, .01, .99)))
+    e["L_pre"] = np.log(np.clip(e.y_pre, CLIP, 1 - CLIP) / (1 - np.clip(e.y_pre, CLIP, 1 - CLIP)))
     e["p_close"] = sigmoid(e.L_pre + e.move)
     e["absdp"] = (e.p_close - e.y_pre).abs()
     e["sgn"] = np.sign(e.move)
-    e["tg"] = pd.cut(e.takers, [0, 1, 3, np.inf], labels=["1", "2-3", "4+"])
+    e["tg"] = pd.cut(e.takers, TG_EDGES, labels=TG_LABELS)
     return e
 
 
@@ -71,12 +72,12 @@ def ratio(x, col):
     return x[col].sum() / x.absdp.sum()
 
 
-BINS = np.linspace(0, 1, 21)
+BINS = np.linspace(0, 1, N_BINS + 1)
 
 
 def main():
     out = {}
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob(f"{EV}/1800/r*.parquet")], ignore_index=True)
+    rnd = random_slots()
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()]
     base_rand = baseline_table(rnd.vwap.values, rnd.outcome.values, BINS)
@@ -124,21 +125,21 @@ def main():
     print(f"\n[4] single-trader big moves: {len(w):,} by {len(cnt):,} wallets; top 1% of wallets make {top1:.1%}, top 10% make {top10:.1%}")
     rest = w[~w.taker1.isin(cnt.head(max(1, len(cnt) // 100)).index)]
     print(f"    overshoot share without the top 1% wallets: {ratio(rest, 'os_close'):.3f} (all: {ratio(w, 'os_close'):.3f})")
-    rep = w[w.taker1.isin(cnt[cnt >= 10].index)].sort_values("t_close")
+    rep = w[w.taker1.isin(cnt[cnt >= WALLET_MIN].index)].sort_values("t_close")
     rep["half"] = rep.groupby("taker1").cumcount() < rep.groupby("taker1").taker1.transform("size") / 2
     per = rep.groupby(["taker1", "half"]).apply(lambda x: ratio(x, "os_close")).unstack()
     per = per.dropna()
     r_obs = per.corr().iloc[0, 1]
     rng = np.random.default_rng(0)
     null = []
-    for _ in range(200):
+    for _ in range(N_RESAMPLES):
         sh = rep.copy()
         sh["taker1"] = rng.permutation(sh.taker1.values)
         sh = sh.sort_values("t_close")
         sh["half"] = sh.groupby("taker1").cumcount() < sh.groupby("taker1").taker1.transform("size") / 2
         p2 = sh.groupby(["taker1", "half"]).apply(lambda x: ratio(x, "os_close")).unstack().dropna()
         null.append(p2.corr().iloc[0, 1])
-    print(f"    wallets with 10+ such moves: {len(per):,}; first-half vs second-half overshoot correlation "
+    print(f"    wallets with WALLET_MIN+ such moves: {len(per):,}; first-half vs second-half overshoot correlation "
           f"{r_obs:.3f} (shuffled null: {np.mean(null):.3f} ± {np.std(null):.3f})")
     out["wallet_corr"] = (r_obs, np.mean(null), np.std(null), len(per))
     per.to_csv("local_data/r03_wallet_halves.csv")

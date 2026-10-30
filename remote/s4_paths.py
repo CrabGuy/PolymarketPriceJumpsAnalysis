@@ -3,7 +3,7 @@ Stage 4: fixed-length price paths for motif/discord search, and up/down moves.
 
 Modes
   moves <buckets...>     non-recurring markets (tmp/buckets): for every big move
-                         (VWAP basis, s2.BAR bars, jumps of >= 13 points, same window as s3),
+                         (VWAP basis, s2.BAR bars, jumps of >= 16 points, same window as s3),
                          the YES price at the end of 55 five-minute steps, from 35 min
                          before to 4 h after the move bar closes (forward-filled VWAP).
                          -> tmp/paths/moves_<k>.parquet (market, t_close, p0..p54)
@@ -11,11 +11,14 @@ Modes
                          evenly spaced points across its trading window (the last 5 min,
                          15 min, 1 h, 4 h or day before end_date, by tag), forward-filled.
                          -> tmp/paths/ud_<k>.parquet (market, dur_min, n_window, p0..p29)
-  udmoves <buckets...>   up/down moves on 1-min bars via s3 (cut only at the settle moment,
-                         LIFE_CUT = 0: the 10% window drops 70% of these markets' jumps and
-                         changes the results, round 9; next trades within 5 min) -> tmp/events3/60/
+  udmoves <buckets...>   up/down moves via s3 with the crypto parameters CX (slot, cuts,
+                         settle band, next trades) -> tmp/events3/<slot>/
   cx, cxmoves            the same as ud / udmoves on the full crypto set (tmp/buckets_cx,
                          from s1x_bucket.py) -> tmp/paths/cx_<k>.parquet, tmp/events_cx/60/
+  finemoves <buckets...> as moves, at 1-minute steps from 60 min before to 8 h after the
+                         slot's close (for the elbow choice of step and span)
+                         -> tmp/paths/fine_<k>.parquet
+  cxfine <buckets...>    as cx, with 120 points per market -> tmp/paths/cxfine_<k>.parquet
 Usage: python s4_paths.py <mode> <bucket> [<bucket> ...]
 Python 3.8 compatible (server).
 """
@@ -31,7 +34,8 @@ import s2_events as s2
 import s3_events as s3
 
 STEP = 300
-MIN_PTS = 0.13                       # a price jump: at least 13 points (round 11; was 10)
+MIN_PTS = 0.16                       # a price jump: at least 16 points (elbow)
+CX = dict(slot=60, min_pts=0.18, cut_start=0.20, cut_end=0.08, edge=0.03, next_n=3, next_max=120)  # crypto (elbow)
 OFFSETS = np.arange(-7, 48)          # 5-min steps relative to the move bar close
 N_UD = 30
 DUR = {"5M": 5, "15M": 15, "1H": 60, "4h": 240, "daily": 1440}
@@ -115,7 +119,7 @@ def ud_paths(k, end_ts, dur_of):
 
 
 def main(mode, buckets):
-    global UD_SRC
+    global UD_SRC, STEP, OFFSETS, N_UD
     os.makedirs("tmp/paths", exist_ok=True)
     end_ts = end_times()
     if mode in ("cx", "cxmoves"):
@@ -125,11 +129,18 @@ def main(mode, buckets):
         tag = "cx"
     else:
         tag = mode
+    if mode == "finemoves":
+        STEP, OFFSETS = 60, np.arange(-60, 481)
+        mode, tag = "moves", "fine"
+    if mode == "cxfine":
+        N_UD = 120
+        UD_SRC = "tmp/buckets_cx"
+        mode, tag = "ud", "cxfine"
     if mode == "udmoves":
         s2.SRC = UD_SRC
-        s2.LIFE_CUT = 0
-        s3.ENTRY_MAX = 300
-        s3.main(60, buckets)
+        s2.LIFE_CUT_START, s2.LIFE_CUT_END, s2.EDGE = CX["cut_start"], CX["cut_end"], CX["edge"]
+        s3.ENTRY_N, s3.ENTRY_MAX = CX["next_n"], CX["next_max"]
+        s3.main(CX["slot"], buckets)
         return
     dur_of = None
     if mode == "ud":

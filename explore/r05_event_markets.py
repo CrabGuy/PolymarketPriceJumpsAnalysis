@@ -27,34 +27,40 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import sigmoid  # noqa: E402
+from r02_persistence import CONTROL_BINS, N_RESAMPLES, TG_LABELS, random_slots, sigmoid  # noqa: E402
 from r04_types import osh, baseline, market_info  # noqa: E402
 from r02_persistence import outcomes  # noqa: E402
 
 OUT = "local_data/r05/"
-N_BOOT = 200
+N_BOOT = N_RESAMPLES
 
 
 def share(x, col):
     return x[col].sum() / x.absdp.sum()
 
 
+def qbins(v, k):
+    """k quantile bins of a continuous control, labelled q1 (lowest) to qk."""
+    return pd.qcut(v.rank(method="first"), k, labels=[f"q{i + 1}" for i in range(k)]).astype(str)
+
+
 def factors(t):
+    k = CONTROL_BINS
     f = pd.DataFrame(index=t.index)
     f["takers"] = t.tg.astype(str)
     f["question type"] = t.qtype
     f["category"] = t.cat
-    f["money in bar"] = pd.cut(t.usd, [0, 100, 1000, 10000, np.inf], labels=["<$100", "$100-1k", "$1k-10k", ">$10k"]).astype(str)
-    f["price before"] = pd.cut(t.y_pre, [0, .2, .4, .6, .8, 1], labels=["<20%", "20-40%", "40-60%", "60-80%", ">80%"]).astype(str)
-    f["time to end"] = pd.cut(t.days_to_end, [-np.inf, 1, 7, 30, np.inf], labels=["<1 day", "1-7 days", "7-30 days", ">30 days"]).astype(str)
-    f["market lifetime"] = t.life.astype(str)
+    f["money in bar"] = qbins(t.usd, k)
+    f["price before"] = qbins(t.y_pre, k)
+    f["time to end"] = qbins(t.days_to_end, k)
+    f["market lifetime"] = qbins(t.life_days, k) if "life_days" in t else t.life.astype(str)
     f["year"] = t.year.clip(lower=2023).astype(str).replace("2023", "2022-23")
     f["direction"] = t.dir
     return f.astype(object).where(f.notna(), "unknown").replace("nan", "unknown")
 
 
-REF = {"takers": "1", "question type": "other", "category": "other", "money in bar": "<$100",
-       "price before": "40-60%", "time to end": ">30 days", "market lifetime": ">30 days",
+REF = {"takers": "1", "question type": "other", "category": "other", "money in bar": "q1",
+       "price before": "q1", "time to end": "q1", "market lifetime": "q1",
        "year": "2024", "direction": "down"}
 
 
@@ -75,7 +81,7 @@ def wls(X, y, w):
     return beta
 
 
-def part_a(t):
+def part_a(t, quiet=False, boot=True):
     f = factors(t)
     ok = ~(f == "unknown").any(axis=1).values
     t, f = t[ok], f[ok]
@@ -88,10 +94,10 @@ def part_a(t):
     pos = pd.Series(np.arange(len(t))).groupby(mk).apply(np.array)
     rng = np.random.default_rng(0)
     boots = []
-    for _ in range(N_BOOT):
+    for _ in range(N_BOOT if boot else 0):
         pick = np.concatenate(pos.loc[rng.choice(uniq, len(uniq))].values)
         boots.append(wls(X[pick], y[pick], w[pick]))
-    boots = np.array(boots)
+    boots = np.array(boots) if boots else np.full((1, len(beta)), np.nan)
     res = pd.DataFrame({"factor": [n[0] for n in names], "level": [n[1] for n in names], "effect": beta,
                         "lo": np.percentile(boots, 2.5, axis=0), "hi": np.percentile(boots, 97.5, axis=0)})
     # raw (unadjusted) gaps for the takers factor, for comparison
@@ -103,6 +109,8 @@ def part_a(t):
         lv = np.append(r.effect.values, 0.0)          # the reference level is 0
         rows.append({"factor": c, "levels": len(lv), "spread": lv.max() - lv.min()})
     spread = pd.DataFrame(rows).sort_values("spread", ascending=False)
+    if quiet:
+        return res, spread
     print(f"[A] {len(t):,} moves, {len(uniq):,} markets, {X.shape[1]} terms")
     print("raw overshoot by takers:", raw.round(3).to_dict())
     print(res[res.factor == "takers"].round(3).to_string(index=False))
@@ -140,7 +148,7 @@ def part_c(t):
     for q, x in t.groupby("q"):
         r = {"quarter": q, "moves": len(x), "markets": x.market.nunique(), "close": share(x, "oq"),
              "next trades": share(x, "oqe")}
-        for tg in ("1", "2-3", "4+"):
+        for tg in TG_LABELS:
             s = x[x.tg == tg]
             r[f"close {tg}"] = share(s, "oq") if len(s) >= 200 else np.nan
             r[f"next {tg}"] = share(s, "oqe") if len(s) >= 200 else np.nan
@@ -179,7 +187,7 @@ def part_d(t):
     return res
 
 
-def boot_mean(x, n=200):
+def boot_mean(x, n=N_RESAMPLES):
     g = x.groupby("market").ret.agg(["sum", "size"])
     rng = np.random.default_rng(1)
     s, c = g["sum"].values, g["size"].values
@@ -195,7 +203,7 @@ def main():
     t = pd.read_parquet("local_data/r04_tradable.parquet")
     t = t[t.oq.notna() & t.oqe.notna()].copy()
     info = market_info()
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
+    rnd = random_slots()
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()].join(info, on="market")
     cb = baseline(rnd, "qtype")

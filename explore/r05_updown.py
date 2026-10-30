@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import MIN_PTS, outcomes, sigmoid  # noqa: E402
+from r02_persistence import CLIP, CX_MIN_PTS, CX_MOVED, N_RESAMPLES, TG_EDGES, TG_LABELS, outcomes, sigmoid  # noqa: E402
 from r03_robustness import BINS  # noqa: E402
 
 OUT = "local_data/r05/"
@@ -37,14 +37,14 @@ DUR = {"5M": 5, "15M": 15, "1H": 60}
 OTHER = {"bitcoin": "ethereum", "ethereum": "bitcoin", "solana": "bitcoin", "xrp": "bitcoin"}
 EVENTS = OUT + "events_cx/60/e*.parquet"
 PATHS = OUT + "cx_paths/cx_*.parquet"
-CONF = 0.1             # a related market "moved" if its log-odds changed by at least this
+CONF = CX_MOVED        # a related market "moved" if its log-odds changed by at least this
 
 
 def share(x, col):
     return x[col].sum() / x.absdp.sum()
 
 
-def boot(x, col, n=200):
+def boot(x, col, n=N_RESAMPLES):
     g = x.groupby("market").agg(a=(col, "sum"), b=("absdp", "sum"))
     rng = np.random.default_rng(4)
     a, b = g.a.values, g.b.values
@@ -90,11 +90,11 @@ def price_at(paths, asset, dur, end, t):
 
 
 def logit(p):
-    p = np.clip(p, 0.01, 0.99)
+    p = np.clip(p, CLIP, 1 - CLIP)
     return np.log(p / (1 - p))
 
 
-def load_moves(info, min_pts=MIN_PTS, min_logit=0.0):
+def load_moves(info, min_pts=CX_MIN_PTS, min_logit=0.0):
     e = pd.concat([pd.read_parquet(f) for f in glob.glob(EVENTS)], ignore_index=True)
     e = e.merge(info, on="market")
     e["outcome"] = e.market.map(outcomes())
@@ -103,7 +103,7 @@ def load_moves(info, min_pts=MIN_PTS, min_logit=0.0):
     e["p_close"] = sigmoid(e.L_pre + e.move)
     e["sgn"] = np.sign(e.move)
     e["absdp"] = (e.p_close - e.y_pre).abs()
-    e["tg"] = pd.cut(e.takers, [0, 1, 3, np.inf], labels=["1", "2-3", "4+"])
+    e["tg"] = pd.cut(e.takers, TG_EDGES, labels=TG_LABELS)
     e["min_left"] = (e.end - e.t_close) / 60
     e["stage"] = pd.cut(e.min_left / (e.dur_s / 60), [-1e-9, 0.25, 0.5, 0.75, 1.0001],
                         labels=["last quarter", "third", "second", "first quarter"])

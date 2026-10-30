@@ -43,13 +43,13 @@ the market later takes back. This holds in every year and every category.
 What tells real jumps from noise is **how many different traders made them**:
 - A jump made by one trader goes about 40% too far, and the next trades, minutes later,
   undo most of it.
-- A jump made by four or more traders goes less than a fifth too far, and that part
-  lingers for hours.
+- A jump made by a crowd (five traders or more) goes about a seventh too far, and that
+  part lingers for hours.
 - Lone pushes are common where the order book is thin, so that a few dollars can move the
   price.
 
 Once the bid-ask spread is paid, betting against lone pushes loses money. Betting against
-crowd jumps, and jumps with over $1,000 behind them, leaves a small edge before fees.
+crowd jumps, and jumps with $200 or more behind them, leaves a small edge before fees.
 
 ---
 
@@ -83,21 +83,22 @@ resolved **YES** (and the iPhone SE market NO).
 ![A real market with its price jumps](plots/ex1_example-market.png)
 
 The trades are grouped into 30-minute slots, and each slot gets its average price: each dot
-is one slot with trades. A **price jump** (red) is a slot whose price is at least **13
+is one slot with trades. A **price jump** (red) is a slot whose price is at least **16
 percentage points** away from the previous slot with trades.
 
 Two stretches of each market's life are left out (grey). The life runs from the first trade
-to the moment the price leaves 5-95% for good (or to the last trade, if it never does):
-- **the first 5%**, while the price is still being found;
-- **the last 5%**, the run-up to 0% or 100% that every market makes, which would only
+to the moment the price leaves 3-97% for good (or to the last trade, if it never does):
+- **the first 7.5%**, while the price is still being found;
+- **the last 4.5%**, the run-up to 0% or 100% that every market makes, which would only
   measure the obvious.
 
-Because both scale with the market, a three-hour game loses about 9 minutes at each end and
-a year-long election market about two and a half weeks. In this market that leaves four
-jumps: the lone push on the 15th and part of its reversal, and the rise on the 17th, in two
-steps. The announcement itself falls in the last 5%.
+Because both scale with the market, a three-hour game loses about 13 minutes at the start
+and 8 at the end, and a year-long election market about four weeks and two weeks. In this
+market that leaves three jumps: the lone push on the 15th, and the rise on the 17th in two
+steps. The announcement itself falls in the last 4.5%. Every number in this definition
+(30 minutes, 16 points, 7.5%, 4.5%, 3%) was set by the elbow method, [below](#how-the-parameters-were-chosen-the-elbow-method).
 
-**How common are price jumps?** 45% of political markets have some; most sports and esports
+**How common are price jumps?** 38% of political markets have some; most sports and esports
 markets, which are short and many, have none:
 
 ![How many markets have price jumps](plots/bg_spikes-by-category.png)
@@ -152,44 +153,55 @@ counting equally, gives the same conclusions, with crowd overshoots a few points
 
 ### How the parameters were chosen: the elbow method
 
-Every number that defines the analysis was checked with the **elbow method**. These are the
-jump threshold, the cuts at the start and end of a market's life, the slot length, the settle
-band, how the next trades are taken, the trader groups, and the sizes of the samples. For
-each one, a curve is drawn over a wide range of values. It shows what the parameter controls:
-how many jumps it keeps, or the result itself. Such curves usually change fast at first and
-then flatten. The **knee** is where they bend. We find it with the Kneedle rule (Satopää et
-al., 2011): the point farthest from the straight line joining the two ends of the curve, with
-both axes scaled to 0-1 ([formula](#61-formulas)). Past the knee, moving the parameter further
-changes little.
+Every parameter of the analysis was set by the **elbow method**: how a price jump is defined,
+which part of a market's life is used, how the next trades are taken, the trader groups, the
+money threshold, the sample sizes, and the settings of each finding. Splits used only to
+display a finding (price bands, years, histogram bins) are not parameters and were not tuned;
+the uncertainty ranges are 95% ranges, a convention.
 
-![The elbow method for every parameter](plots/m_elbows.png)
+For each parameter, a curve is drawn over a wide range of values. It shows what the parameter
+controls: how many jumps it keeps, how noisy a number is, or the result itself. Such curves
+usually change fast at first and then flatten. The **knee** is where they bend; we find it
+with the Kneedle rule (Satopää et al., 2011): the point farthest from the straight line that
+joins the two ends of the curve, with both axes scaled to 0-1 ([formula](#61-formulas)). Three
+rules apply to every curve:
+- **One axis.** The knee is always found on a linear axis, never a log one (the two can
+  give different knees for parameters tried over a wide range).
+- **Enough jumps.** A point of a curve that is a share of jumps needs at least 1,000 jumps
+  behind it; thinner points are left out.
+- **Parameters that depend on each other are searched together.** Each one is set to the
+  knee of its curve with all the others at their own knees, and this is repeated until no
+  knee moves (a fixed point; it took three rounds).
 
-What the elbows gave, and the values used:
-- **Jump threshold: 13 points.** Both the number of jumps and the overshoot bend at 13
-  points (values tried: 4 to 40).
-- **Cut at each end of a market's life: 5%.** Leaving out the end of a market's life raises
-  the overshoot fast up to about 5%, and barely after. Before that, the run-up to settling
-  is still mixed in: prices racing to 0% or 100% as the outcome becomes known. Cutting the
-  start alone hardly changes the result (by about 1 point from 0% to 10%), so it has no
-  knee of its own; both ends use 5%, the knee of cutting both together.
-- **Slot length: 30 minutes.** Among slots of 1 minute to 2 hours, both the number of jumps
-  and the overshoot bend at 30 minutes.
-- **Next trades: the first 8 trades, within 1 hour.** The overshoot at the next trades keeps
-  falling slowly as more trades are averaged and bends at 8. The share of jumps that have
-  next trades bends at 1 hour.
-- **Settle band: 5-95%.** The knee is at 5 points from 0% or 100%.
-- **Trader groups: 1, 2-3, 4+.** The overshoot falls up to about four traders and is flat,
-  within noise, after; the knee lies between 4 and 6.
-- **Baseline: 20 price bins from a 5% random sample.** The result does not depend on the
-  number of bins (it moves by under 0.3 points from 2 to 100 bins). The sample's knee is
-  at 0.75% of slots; 5% is past it, which only makes the baseline steadier.
-- **Resamples for the uncertainty ranges: 200-300.** The knee is at 150.
+The parameters that define a price jump, at the fixed point (each curve drawn with the other
+parameters at their knees; computed on a random quarter of the markets):
 
-The knees were found one parameter at a time, with the others at the values used before
-(10 points, 10%, 15 minutes, 5 trades); the analysis was then rerun with the knee values.
-One caveat: a count that falls off smoothly has no sharp bend, so its knee moves with the
-range of values tried (the threshold's from 9 to 13 points as the range grows from 20 to 40
-points). Between the old values and the knees, each result moved by about 1 point or less.
+![What a price jump is](plots/m_definition.png)
+
+They barely depend on each other. For every slot length from 1 minute to 2 hours, the
+threshold's knee is 15-16 points; for every threshold, the slot length's knee is 30
+minutes; and the end cut's and the settle band's knees do not move with each other:
+
+![The joint grids](plots/m_grid.png)
+
+The crypto up/down markets get their own search (F8), and every other parameter its own
+curve:
+
+![Crypto parameters](plots/m_crypto.png)
+
+![Every other parameter](plots/m_params.png)
+
+All the values are listed, with the range of each curve, in [section 6.2](#62-parameters-and-how-each-was-chosen). Three things to
+keep in mind:
+- **Flat curves.** Where a parameter barely changes anything, its knee means little. The
+  price clip changes the number of jumps by about 1% over its whole range. The price band of
+  the betting test (F5) changes nothing at all, so no band is used. The pattern search (F9)
+  uses every path that passes its filters, so it has no sample size.
+- **Gentle bends.** Some curves are almost straight lines (the wait for a follow-up trade in
+  F10, the "moved" threshold in F8, the match radius in F9). Their knee is a weak choice:
+  another value close by would be as good.
+- **Range.** A curve that falls off smoothly has no sharp bend, so its knee depends on the
+  range of values tried. The ranges are stated in section 6.2.
 
 ---
 
@@ -197,27 +209,28 @@ points). Between the old values and the knees, each result moved by about 1 poin
 
 ### F1. Price jumps overshoot by over a third
 
-Across 191,065 price jumps in 59,536 markets with a clear outcome, the price right after a
-jump is on average **too extreme by 36% of the jump** (range 35.0-36.0%).
+Across 137,035 price jumps in 50,419 markets with a clear outcome, the price right after a
+jump is on average **too extreme by 36% of the jump** (range 35.4-36.4%).
 
 The plot shows it without any formula. For jumps that ended at a given price (x-axis), it
 shows how often YES actually won (y-axis):
-- after an **up** jump to about 60%, YES won only 45% of the time;
-- after a **down** jump to about 60%, YES won 62% of the time;
+- after an **up** jump to about 60%, YES won only 43% of the time;
+- after a **down** jump to about 60%, YES won 64% of the time;
 - at random moments, a 60% price won 57% of the time.
 
 After a jump, the price sits too far in the direction of the jump.
 
 ![After a jump, the price is too far](plots/f1_hero.png)
 
-It is between 31% and 40% in every category and every year, and at any distance from the
-market's end. It is highest for jumps starting below 20% (47%):
+It is between 31% and 41% in every category and every year, and at any distance from the
+market's end. It is highest for jumps starting below 20% (50%):
 
 ![Overshoot by category, year, price and time left](plots/f1_splits.png)
 
-The size varies by topic. Across 103 tags it ranges from 9% to 52%. Markets on stock prices
-(Amazon, Meta, Tesla) and weekly or daily price markets are at the low end; UFC, earnings,
-the UK, the Premier League and the trade war at the high end.
+The size varies by topic. Across the 123 tags with at least 200 markets with jumps, it ranges
+from 16% to 51%. Markets on stock prices (Amazon, Meta, Microsoft, Palantir) and weekly price
+markets are at the low end; economic policy, earnings, UFC, awards and the Premier League at
+the high end.
 
 ![Overshoot by tag](plots/f1_tags.png)
 
@@ -231,11 +244,11 @@ jump's 30 minutes**.
 ![Overshoot by number of traders](plots/f2_traders.png)
 
 **Trader by trader.** 66% of price jumps are made by a single trader, 13% by two and 6% by
-three; the remaining 15% are spread over four traders and more, up to several hundred. The
-overshoot falls from 43% with one trader to 36% with two, 31% with three and 24% with four.
-From four traders on, each count has under 6,000 jumps and the values scatter (3% to 33%)
-with wide, overlapping ranges; together they overshoot 18%. So the report groups traders as
-1, 2-3 and 4+.
+three; the remaining 16% are spread over four traders and more, up to several hundred. The
+overshoot falls from 43% with one trader to 37% with two, 30% with three and 24% with four.
+The elbow of this curve is at five traders (section 2), so the report groups traders as 1,
+2-4 and 5 or more (a "crowd"). From five on, each count has under 3,000 jumps and the values
+scatter (4% to 26%) with wide ranges; together they overshoot 14%.
 
 ![By exact number of traders](plots/f2_trader-counts.png)
 
@@ -250,36 +263,37 @@ Two real jumps show the contrast:
 ![Two real jumps](plots/f2_two-moves.png)
 
 The pattern is robust:
-- **At the same money.** In every money band, one trader's jumps overshoot the most. Above
-  $500 the gap is widest: 42% for one trader against 18% for four or more.
+- **At the same money.** Below and above $200 traded in the slot (the money threshold set by
+  the elbow method), one trader's jumps overshoot the most: 41% against 11% for a crowd below
+  it, 36% against 14% above it.
 
   ![By money and number of traders](plots/f2_money.png)
 
-- **For every definition of a price jump:** 5-, 30- or 60-minute slots, and jumps of at
-  least 8, 13 or 18 points.
+- **For other definitions of a price jump:** 5-, 30- or 60-minute slots, and jumps of at
+  least 11, 16 or 21 points.
 
   ![Robustness](plots/f2_robustness.png)
 
 - **With everything else held fixed.** A regression holds category, question type, money,
   price level, time to the end, market lifetime, year and direction fixed at once. Crowd
-  jumps still overshoot 21 points less than single-trader jumps, against 24 points raw.
+  jumps still overshoot 18 points less than single-trader jumps, against 27 points raw.
 
   ![With all other factors held fixed](plots/f2_controlled.png)
 
-- **It's not a handful of wallets.** The 126,000 single-trader jumps come from 56,000
+- **It's not a handful of wallets.** The 90,000 single-trader jumps come from 44,000
   wallets. A wallet's overshoot in the first half of its history barely predicts the second
   half.
 
   ![Wallets](plots/f2_wallets.png)
 
 - **Do lone pushes point the right way?** A jump points the right way if it went up and YES
-  won, or went down and NO won. Single-trader jumps did so 52.9% of the time. Had the price
-  before the jump been right, they would have done so 38.5% of the time; had the price after
-  it been right, 63.8%. So a lone push does carry information: it points the right way more
+  won, or went down and NO won. Single-trader jumps did so 53.5% of the time. Had the price
+  before the jump been right, they would have done so 36.7% of the time; had the price after
+  it been right, 66.1%. So a lone push does carry information: it points the right way more
   often than the old price implied, but less often than the new price claims. It covers
-  (52.9 − 38.5) / (63.8 − 38.5) = 57% of the way, which is the 43% overshoot seen from
-  another angle. Crowd jumps (4+) point the right way 57.8% of the time, against 40.1% and
-  62.0%: 81% of the way.
+  (53.5 − 36.7) / (66.1 − 36.7) = 57% of the way, which is the 43% overshoot seen from
+  another angle ([why](#61-formulas)). Crowd jumps point the right way 60.7% of the time, against
+  39.4% and 64.5%: 85% of the way.
 
   ![Pointing the right way](plots/f2_accuracy.png)
 
@@ -292,23 +306,23 @@ information than the size of a jump.
 
 Following the same jumps over time (those with prices a day later):
 - **One trader:** the overshoot falls from 43% to **9% at the very next trades**.
-- **Four or more traders:** it starts lower (28%) but lingers. It is still 22% at the next
-  trades and 17% after an hour, and gone (0%) after a day.
+- **A crowd:** it starts lower (28%) but lingers. It is still 25% at the next trades and 19%
+  after an hour, and almost gone (1%) after a day.
 
 ![How the overshoot fades](plots/f3_decay.png)
 
-"Next trades" means the first eight trades after the 30 minutes. They come a median of 2
-minutes after crowd jumps and 19 minutes after single-trader jumps, which happen in quieter
+"Next trades" means the first seven trades within 45 minutes after the slot. They come a
+median of 2 minutes after crowd jumps and 15 minutes after single-trader jumps, which happen in quieter
 markets.
 
 **One jump at a time.** The overshoot is an average: with an outcome that is either 0 or 1,
 it cannot be read off a single jump. What can be measured jump by jump is how much of it the
-next trades gave back. For the 41,801 single-trader jumps whose market traded again within
-the hour (33% of them), the answer is spread out:
-- 29% were taken further by the next trades;
+next trades gave back. For the 25,252 single-trader jumps whose market traded again within
+45 minutes (28% of them), the answer is spread out:
+- 30% were taken further by the next trades;
 - 17% were kept as they were (0-10% given back);
-- 37% lost at least half, and 16% lost all of it or more;
-- the median jump gave back 17%; weighted by size, 35% of the jump was given back.
+- 36% lost at least half, and 16% lost all of it or more;
+- the median jump gave back 15%; weighted by size, 35% of the jump was given back.
 
 ![How much the next trades gave back](plots/f3_giveback.png)
 
@@ -321,7 +335,7 @@ overshoot is a slower over-reaction.
 
 ---
 
-### F4. In a race, a crowd's jump that the other candidates offset is right at once
+### F4. In a race, a crowd's jump that the other candidates offset does not overshoot
 
 Many questions on Polymarket are races: who wins an election, which team wins a league.
 Each candidate is its own market, and exactly one of them will win. Most of these races are
@@ -330,22 +344,23 @@ YES shares of all the others. This links the candidates' prices, so that their Y
 up to about 100%, and it gives liquidity even to the long shots.
 
 So when one candidate jumps, the others should fall by about as much in total. For each of
-the 24,353 price jumps in neg-risk events, we checked what the other candidates did in the
-same 30 minutes. They either **offset** the jump (moved the other way by at least 75% of it),
-**partly** offset it (25-75%), did **not** offset it, or did not trade at all.
+the 15,114 price jumps in neg-risk events, we checked what the other candidates did in the
+same 30 minutes. They either **offset** the jump (moved the other way by at least as much as
+the jump), **partly** offset it (55-100%), did **not** offset it (less than 55%), or did not
+trade at all. The two cut-offs are the knees of the crowd's overshoot curve (section 2).
 
 ![Other candidates](plots/f4_versions.png)
 
-- A **crowd's jump** (4+ traders) that the others offset is right at once: −3% at the end of
-  the 30 minutes (range −11% to +5%). Without the offset it overshoots by 41%, and by 46% if
-  no other candidate traded.
-- For a **lone trader's** jump the offset makes no difference: 33-45% either way.
+- A **crowd's jump** that the others offset does not go too far; if anything, it falls
+  slightly short: −12% at the end of the 30 minutes (range −23% to −3%). Without the offset it
+  overshoots by 36%, and by 46% if no other candidate traded.
+- For a **lone trader's** jump the offset makes no clear difference (18-43%, with wide ranges).
 - By the **next trades** the difference is gone: crowd jumps are 16-17% too far, offset or not.
 
 **What it means.** In a race, a crowd jump that the rest of the field confirms by repricing
-is right at once. A jump the rest of the field ignores goes too far until the next trades
-correct it. Outside neg-risk events (48,000 jumps), offset jumps are no better (36% against
-25% overshoot), but there the markets of an event need not exclude each other, so an "offset"
+is not too far. A jump the rest of the field ignores goes too far until the next trades
+correct it. Outside neg-risk events (33,000 jumps), offset jumps are no better (35% against
+24% overshoot), but there the markets of an event need not exclude each other, so an "offset"
 means little.
 
 ---
@@ -354,20 +369,20 @@ means little.
 
 If jumps overshoot, betting against them should pay. Each test bet buys the opposite side
 right after the jump, at the price a bettor would actually have paid, and holds it to the
-end. Returns are measured per $1 staked, net of the usual pricing error. Bets are placed
-only when the jump started between 5% and 95%, because below that the opposite side costs a
-few cents and a single win pays 20 times the stake.
+end. Returns are measured per $1 staked, net of the usual pricing error.
 
-Even so, a few very large wins dominate the plain averages. With the most extreme 1% at each
-end trimmed:
+A few very large wins dominate the plain averages, so the returns are trimmed: the most
+extreme 2.5% at each end are pulled in to the 2.5% limits (the knee of the trim curve). The
+level of the result depends on the trim, which keeps falling as more is trimmed; the
+ordering (crowd jumps far ahead of lone pushes) holds at every trim level.
 
 ![Betting against price jumps](plots/f5_fade.png)
 
-- **After single-trader jumps, betting against them loses** about 7 cents per $1 (range 5-10).
-  The fast snap-back happens, but the bid-ask spread (a median 6.3 cents) eats it.
-- **After crowd jumps (4+ traders), it gains** about 7 cents per $1 (range 5-10), where the
-  spread is only 2.0 cents.
-- **After jumps with over $1,000 behind them, it gains** about 17 cents per $1 (range 14-21).
+- **After single-trader jumps, betting against them loses** about 10 cents per $1 (range
+  7-13). The fast snap-back happens, but the bid-ask spread (a median 6.4 cents) eats it.
+- **After crowd jumps, it gains** about 3 cents per $1 (range 1-6), where the spread is only
+  1.8 cents.
+- **After jumps with $200 or more behind them, it gains** about 4 cents per $1 (range 2-7).
 
 **What it means.** The large overshoot of lone pushes is gone before anyone can trade on it.
 What a bettor can capture is the smaller overshoot of crowd and big-money jumps, which the
@@ -378,8 +393,8 @@ upper bound.
 
 ### F6. Lone pushes happen in thin markets
 
-Some markets see single-trader jumps all the time, others never. For each of 99,198
-markets with at least 20 active slots, standard market-structure measures were computed:
+Some markets see single-trader jumps all the time, others never. For each of 46,984
+markets with at least 50 slots with trades, standard market-structure measures were computed:
 - how concentrated trading is among wallets (Gini, Herfindahl, the biggest wallet's share);
 - how far $1,000 of net buying moves the price (Kyle's lambda);
 - the bid-ask spread (Roll's estimator, and the buy-sell price gap within a minute);
@@ -390,14 +405,15 @@ markets with at least 20 active slots, standard market-structure measures were c
 - **How often one trader can push the price depends on how thin the book is.** With market
   size held fixed, it correlates with the spread (+0.52) and with the price impact per
   dollar (+0.17).
-- **Concentration among a few wallets doesn't explain it** (Gini −0.15: if anything, the
+- **Concentration among a few wallets doesn't explain it** (Gini −0.12: if anything, the
   opposite).
 - **This holds in every category.**
-- **How far the push goes doesn't depend on the market:** one-trader jumps overshoot 41-48%
+- **How far the push goes doesn't depend on the market:** one-trader jumps overshoot 41-52%
   in every fifth of the markets, on every measure (right panel).
 
-Across 199 tags the link is strong (+0.60). TSA, mention markets, stock and equity markets
-are at the top; football leagues and world elections at the bottom.
+Across the 136 tags with at least 200 markets the link is strong (+0.52). Mention markets,
+Apple, equity and stock markets, approval ratings and earnings are at the top; European
+football and elections at the bottom.
 
 ![By tag](plots/f6_tags.png)
 
@@ -405,19 +421,19 @@ are at the top; football leagues and world elections at the bottom.
 
 ### F7. Sports and esports: the same pattern
 
-Sports and esports make up most markets but have the fewest jumps per market: 69,578 price
-jumps in 31,445 markets with a clear outcome. Because the left-out stretches scale with each
+Sports and esports make up most markets but have the fewest jumps per market: 53,767 price
+jumps in 26,972 markets with a clear outcome. Because the left-out stretches scale with each
 market's life, a game market keeps its game. The data has no kickoff times, so jumps before
 and during a game are not told apart.
 
 ![Sports and esports by number of traders](plots/sp_groups.png)
 
-- **Lone pushes overshoot as everywhere else** (43% in sports, 45% in esports), and the next
+- **Lone pushes overshoot as everywhere else** (43% in sports, 47% in esports), and the next
   trades undo them.
-- **Crowd jumps overshoot less** (21% and 16%), but 16-18% is still there at the next
+- **Crowd jumps overshoot less** (14% in both), but 16-18% is still there at the next
   trades, which come within a minute or two.
 
-By sport, the overshoot ranges from 22% (Dota) to 51% (combat sports):
+By sport, the overshoot ranges from 25% (Dota) to 49% (combat sports):
 
 ![By sport](plots/sp_sport.png)
 
@@ -428,19 +444,21 @@ By sport, the overshoot ranges from 22% (Dota) to 51% (combat sports):
 ### F8. Crypto "up or down" markets: the same pattern, over within seconds
 
 These recurring markets (bitcoin, ether, solana and xrp, over 5 minutes, 15 minutes or 1
-hour) hold 59% of all trades. Measured on 1-minute slots: 233,484 price jumps in 104,958
-markets. Only the stretch after the price settles is left out here: a cut by share of the
-life would remove most of these markets' jumps (70% when tested at 10%).
+hour) hold 59% of all trades. They get their own elbow search, which gives 1-minute slots,
+jumps of at least 18 points, the first 20% and the last 8% of each market's life left out, a
+3-point settle band, and next trades of 3 trades within 2 minutes. That leaves 33,792 price
+jumps in 25,886 markets.
 
 ![Close vs next trades](plots/f8_close-vs-next.png)
 
-At the end of the minute the familiar pattern appears: lone pushes go too far (+10% to +16%)
-and crowd jumps keep going (−16% to −29%). By the next trades, a second or two later, every
-group is within about ±5%: nothing is left to exploit.
+At the end of the minute the familiar pattern appears: lone pushes go too far (+18% in the
+15-minute markets) and crowd jumps keep going (−9% to −11% in the 5- and 15-minute
+markets). By the next trades, seconds later, the ordering is gone: every group sits between
++5% and +14%.
 
 A related market decides the direction. A crowd jump keeps going when the other coin's market
-of the same length moved the same way in that minute (−29%), and reverses when it moved the
-other way (+14%).
+of the same length moved the same way in that minute (−25%), and reverses when it moved the
+other way (+24%).
 
 ![Confirmation by the other coin](plots/f8_confirmation.png)
 
@@ -450,7 +468,7 @@ other way (+14%).
 
 We also looked for recurring shapes with *matrix profiles*, a standard pattern-search tool
 for time series. Price paths after price jumps show **almost no recurring shape beyond chance**:
-5.7% of real paths have a close match elsewhere, against 5.0% of shuffled ones. In the chain of
+15.5% of real paths have a close match elsewhere, against 15.0% of shuffled ones. In the chain of
 bitcoin's 15-minute markets, the unusual stretches are "whipsaw" markets where the price
 crosses 50% about six times. Comparing the coins' chains shows that their markets move
 together, with bitcoin and ether about 30 seconds ahead of solana and xrp. All of this is
@@ -463,19 +481,19 @@ real but has plain explanations, and none of it is tradable.
 A last, less conclusive check: can one tell a jump that carries news (many traders, a lasting
 effect) from one trader's noise?
 
-After the fact, partly. What the next trades within the hour do to a jump says more than who
-made it. Jumps the next trades took further were about right at the close; jumps they
-reversed were wholly unjustified. This holds for every trader group. A jump with 4+ traders
-that the next trades kept had no overshoot at all (0%, range −3% to 3%). A one-trader jump
-that the next trades mostly gave back had 75%.
+After the fact, partly. What the next trades within 45 minutes do to a jump says more than
+who made it. Jumps the next trades took further were about right at the close; jumps they
+reversed were wholly unjustified. This holds for every trader group. A crowd jump that the
+next trades kept had no overshoot at all (0%, range −4% to 3%). A one-trader jump that the
+next trades mostly gave back had 76%.
 
 ![What the next trades did](plots/f10_reaction.png)
 
-At the moment of the jump, though, the signs are weak. The number of traders helps most (18%
-overshoot with 4+ traders, 41% without). A new trade within five minutes helps too (25%
-vs 40%), and so does $1,000 or more (26% vs 39%). Another market of the same event jumping
-at the same time does not help (36% vs 38%). And 67% of one-trader jumps have no trade at all
-in the following hour, so for most lone pushes the after-the-fact test cannot be applied. This
+At the moment of the jump, though, the signs are weak. The number of traders helps most (14%
+overshoot with a crowd, 41% without). $200 or more helps too (22% vs 40%), and so does a new
+trade within 20 minutes (27% vs 42%). Another market of the same event jumping at the same
+time does not help (34% vs 38%). And 72% of one-trader jumps have no trade at all
+in the following 45 minutes, so for most lone pushes the after-the-fact test cannot be applied. This
 is a description, not a tool.
 
 ---
@@ -507,7 +525,7 @@ is a description, not a tool.
   Other ways of estimating it move the levels by 1-3 points without changing any comparison.
 - **Most jumps are small in money.** The findings describe how prices behave, not a large
   pool of money.
-- **The last 5% of a long market is left out.** For an election market that is its final
+- **The last 4.5% of a long market is left out.** For an election market that is its final
   weeks, when much of the news arrives.
 - **Approximate labels.** Categories and question types come from text rules.
 - **No external data.** There are no news timestamps or live scores, so "confirmation" always
@@ -519,190 +537,382 @@ is a description, not a tool.
 
 ### 6.1 Formulas
 
-Notation: trade $i$ has a time $t_i$, a YES price $y_i$, a dollar amount $u_i$ and a taker
-wallet $w_i$. A market's final outcome is $O = 1$ if YES won and $O = 0$ if NO won.
+Every quantity in the report is defined here. Each entry says what the formula is for, gives
+it, explains every symbol, and says how to read the result. The values of the parameters
+(Greek letters and capitals such as $\Delta$, $\theta$, $N$) are in [section 6.2](#62-parameters-and-how-each-was-chosen),
+with the elbow curve that set each one.
 
-**YES price of a trade.** Each trade is in one of the two tokens of a market:
+**Notation.** A trade $i$ has a time $t_i$ (seconds), a YES price $y_i$ (between 0 and 1), a dollar
+amount $u_i$ and the wallet $w_i$ of its taker (the trader who accepted a posted order). A market's
+final outcome is $O = 1$ if YES won and $O = 0$ if NO won. $\mathbb{1}[\cdot]$ is 1 when the condition
+in brackets is true and 0 otherwise; $|S|$ is the number of elements of a set $S$.
 
-$$y_i = \begin{cases} \text{price}_i & \text{token 1 (YES)} \\ 1 - \text{price}_i & \text{token 2 (NO)} \end{cases}$$
+#### Prices and price jumps
 
-**Slot price.** Slot $s$ holds the trades with $\lfloor t_i / \Delta \rfloor = s$, $\Delta$ = 30 minutes. Its
-price is the volume-weighted average (VWAP), its money and its number of traders are
+**YES price of a trade.** A market has two tokens, YES and NO, whose prices add up to about 1.
+To put every trade on one scale, a trade in the NO token is turned into the YES price:
 
-$$p_s = \frac{\sum_{i \in s} u_i \, y_i}{\sum_{i \in s} u_i}, \qquad U_s = \sum_{i \in s} u_i, \qquad K_s = \left|\{ w_i : i \in s \}\right|$$
+$$y_i = \begin{cases} \text{price}_i & \text{if trade } i \text{ is in the YES token} \\ 1 - \text{price}_i & \text{if it is in the NO token} \end{cases}$$
 
-**Price jump.** With $s^-$ the previous slot of the same market that had trades, and the price
-clipped to $\tilde p = \min(\max(p, 0.01), 0.99)$,
+**Slots.** Time is cut into slots of length $\Delta$. Trade $i$ belongs to slot $s = \lfloor t_i / \Delta \rfloor$
+(the whole part of the division), and the slot is stamped with its closing time $t_s = (s + 1)\Delta$.
+Only slots with at least one trade are used.
 
-$$\Delta p_s = \tilde p_s - p_{s^-}, \qquad \text{slot } s \text{ is a price jump if } |\Delta p_s| \ge \theta, \quad \theta = 0.13$$
+**Slot price, money and traders.** The slot's price is the volume-weighted average price (VWAP) of
+its trades: each trade counts in proportion to its dollars, so a $100 trade weighs a hundred
+times more than a $1 trade. The slot's money is the dollars traded, and its number of traders
+is the number of different taker wallets:
 
-The direction is $d_s = \operatorname{sign}(\Delta p_s)$ (+1 up, −1 down).
+$$p_s = \frac{\sum_{i \in s} u_i \, y_i}{\sum_{i \in s} u_i}, \qquad U_s = \sum_{i \in s} u_i, \qquad K_s = \big|\{ w_i : i \in s \}\big|$$
 
-**Life and window.** A market's life runs from its first slot $t_\text{first}$ to its end
-$t_\text{end}$: the last slot whose last trade lies inside $[\varepsilon, 1 - \varepsilon]$, $\varepsilon = 0.05$, when the
-market ends outside that band; otherwise its last slot. The position of slot $s$ in the life is
+**Price clip.** Prices very close to 0 or 1 are pulled in to $[\kappa, 1 - \kappa]$, so that a move from
+0.2% to 0.1% is not treated as meaningful and log-odds (below) stay finite:
+
+$$\tilde p = \min\big(\max(p, \kappa),\ 1 - \kappa\big)$$
+
+**Price jump.** Let $s^-$ be the previous slot of the same market that had trades. The change and
+the jump rule are
+
+$$\Delta p_s = \tilde p_s - p_{s^-}, \qquad \text{slot } s \text{ is a price jump if } |\Delta p_s| \ge \theta$$
+
+$\theta$ is in price points (0.16 = 16 percentage points). The jump's direction is
+$d_s = \operatorname{sign}(\Delta p_s)$: +1 for up, −1 for down. For a jump $j$ we write $p_{j^-}$ for the price
+before, $p_j$ for the price after (the slot's clipped price) and $|\Delta p_j|$ for its size.
+
+**Log-odds.** Some steps work on the log-odds scale, which stretches prices near 0 and 1:
+
+$$\ell(p) = \log \frac{\tilde p}{1 - \tilde p}$$
+
+A price of 50% has log-odds 0; 90% has 2.2; 99% has 4.6.
+
+#### Which part of a market's life is used
+
+**Settle moment.** A market's price eventually runs to 0 or 1 as its outcome becomes known. Its
+settle moment $t_\text{end}$ is the close of its last slot whose last trade was inside $[\varepsilon, 1 - \varepsilon]$,
+if the market's final slot is outside that band; otherwise it is the close of its last slot.
+Slots after $t_\text{end}$ are not used.
+
+**Position in the life.** With $t_\text{first}$ the close of the market's first slot, the position of
+slot $s$ in the market's life is
 
 $$f_s = \frac{t_s - t_\text{first}}{t_\text{end} - t_\text{first}}$$
 
-and a slot is kept if $c_\text{start} \le f_s \le 1 - c_\text{end}$, with $c_\text{start} = c_\text{end} = 0.05$.
+so $f = 0$ is the first slot and $f = 1$ the settle moment. A slot is used only if
 
-**Outcome.** From the first outcome price $q$ of the market: $O = 1$ if $q > 0.99$, $O = 0$ if
-$q < 0.01$; otherwise the market is left out.
+$$c_\text{start} \le f_s \le 1 - c_\text{end}$$
 
-**Usual error (baseline).** At random slots $r$ (a 5% sample of all kept slots), per category
-$c$ and per price bin $B$ of width 0.05:
+which leaves out the first $c_\text{start}$ and the last $c_\text{end}$ of every market's life, whatever its length.
 
-$$b_c(B) = \frac{1}{|R_{c,B}|} \sum_{r \in R_{c,B}} (O_r - p_r)$$
+**Outcome.** From the market's final outcome price $q_m$ (the first of its two outcome prices):
+$O = 1$ if $q_m > Q$, $O = 0$ if $q_m < 1 - Q$; markets in between (cancelled or split) are left out.
 
-**Overshoot of one jump** $j$, measured at a later price $p$ (the close $p_j$, the next trades, or
-the price $h$ hours later), in price points:
+#### Overshoot
+
+**Usual error (baseline).** Prices are slightly off even at quiet moments. To measure this, a
+share $\rho$ of all used slots is drawn at random. For each category $c$ (politics, sports, …) and
+each of $W$ equal price bins $B$, the usual error is the average gap between outcome and price:
+
+$$b_c(B) = \frac{1}{|R_{c,B}|} \sum_{r \in R_{c,B}} \big(O_r - p_r\big)$$
+
+where $R_{c,B}$ is the set of random slots of category $c$ whose price is in bin $B$. A negative value
+means prices in that bin are usually too high. For a price $p$, $b_c(p)$ is the value of the bin
+that contains $p$.
+
+**Overshoot of one jump.** Measured at a later price $p$ (the price right after the jump, the next
+trades, or the price $h$ hours later), in price points:
 
 $$o_j(p) = -\big[(O_j - p) - b_c(p)\big] \cdot d_j$$
 
-It is positive when the outcome landed on the other side of $p$ from the jump, beyond the
-usual error.
+$O_j - p$ is how far the outcome landed from the price; subtracting $b_c(p)$ removes the usual
+error; multiplying by $-d_j$ makes the result positive when the price was too far *in the
+direction of the jump*. Example: an up jump to 60% in a market that resolved NO, with a usual
+error of −2 points, gives $o = -[(0 - 0.60) - (-0.02)] \cdot 1 = 0.58$.
 
-**Overshoot share** of a group $J$ of jumps (the number the report calls "overshoot"):
+**Overshoot share.** The number the report calls "overshoot", for a group $J$ of jumps:
 
 $$\mathrm{OS}(J) = \frac{\sum_{j \in J} o_j(p)}{\sum_{j \in J} |\Delta p_j|}$$
 
-0% means the jumps were right on average; 100% means the whole jump was unjustified; below
-0% means the price did not go far enough. A single jump's $o_j / |\Delta p_j|$ is not
-informative on its own: the outcome is 0 or 1, so it is either far above or far below zero.
-Only the share over many jumps is.
+It is the part of the total jump size that the outcomes did not justify. 0% means the jumps were
+right on average; 100% means they were wholly unjustified; below 0% means the price did not go
+far enough. One jump's $o_j / |\Delta p_j|$ means little on its own: with an outcome of 0 or 1 it is
+either far above or far below zero. Only the share over many jumps is informative.
 
-**Next trades.** The first $N = 8$ trades of the market after the slot closes, within
-$T = 1$ hour:
+#### After the jump
+
+**Next trades.** The first $N$ trades of the market after the slot closes, within $T$ seconds,
+averaged by dollars:
 
 $$p^\text{next}_j = \frac{\sum_{k=1}^{N} u_k \, y_k}{\sum_{k=1}^{N} u_k}$$
 
-**How the price settles after a jump (F3).** With $\ell(p) = \log \frac{p}{1-p}$, the share of the
-jump still in the price $h$ hours later, using the last slot with trades before $t_j + h$:
+This is the first price an outsider could have traded at after seeing the jump. Jumps with no
+trade within $T$ have no next-trades price.
 
-$$R_j(h) = \frac{\ell(p_{t_j + h}) - \ell(p_{j^-})}{\ell(p_j) - \ell(p_{j^-})}, \qquad h \in \{1, 6, 24\} \text{ hours}$$
+**How the price settles (F3).** The share of the jump still in the price $h$ hours later, on the
+log-odds scale, using the last slot with trades before $t_j + h$:
 
-The decay curve is $\mathrm{OS}$ evaluated at $p = p^\text{next}_j$ and at $p = p_{t_j + h}$, on the same jumps.
+$$R_j(h) = \frac{\ell(p_{t_j + h}) - \ell(p_{j^-})}{\ell(p_j) - \ell(p_{j^-})}$$
+
+$R = 1$: the whole jump is still there; $R = 0$: the price is back where it started. The decay curve
+in F3 is $\mathrm{OS}$ computed at the close, at $p^\text{next}$, and at $p_{t_j + h}$ for $h$ = 1, 6 and 24 hours, on the
+same jumps (those with all horizons inside the window).
 
 **Share of a jump given back** by the next trades:
 
 $$g_j = \frac{p_j - p^\text{next}_j}{p_j - p_{j^-}}$$
 
 $g = 0$: the next trades kept the jump; $g = 1$: they undid all of it; $g < 0$: they went further.
+The F10 reactions use $1 - g_j$, the share kept: below 0 "reversed it fully", 0-0.5 "gave back
+over half", 0.5-1 "kept over half", above 1 "went further".
 
-**Pointing the right way.** A jump points toward the outcome if it went up and YES won, or
-down and NO won:
+#### Pointing the right way
 
-$$A(J) = \frac{1}{|J|} \sum_{j \in J} \mathbb{1}\big[d_j = 2 O_j - 1\big]$$
+**Accuracy of a group of jumps.** A jump points toward the outcome if it went up and YES won,
+or went down and NO won. The share of a group $J$ that did so:
 
-compared with the rate expected if the price after the jump were right,
-$E_\text{after} = \frac{1}{|J|}\sum_j \big(p_j \text{ if } d_j = +1 \text{, else } 1 - p_j\big)$, and the same with the price
-before the jump, $E_\text{before}$.
+$$A(J) = \frac{1}{|J|} \sum_{j \in J} \mathbb{1}\big[d_j = 2O_j - 1\big]$$
 
-**Ranges.** Markets are resampled with replacement $M$ times ($M$ = 200-300); the range is the
-2.5th to 97.5th percentile of the $M$ values of $\mathrm{OS}$ (5th to 95th for the F1 headline).
+($2O_j - 1$ is +1 when YES won and −1 when NO won.)
 
-**All factors at once (F2).** Weighted least squares over jumps, weight $|\Delta p_j|$:
+**What a price implies.** If prices were exactly right, an up jump to $p_j$ would point the right
+way with probability $p_j$ (the chance of YES), and a down jump with probability $1 - p_j$. The rate
+implied by the price after the jump, and the same with the price before it:
 
-$$\frac{o_j(p_j)}{|\Delta p_j|} = \beta_0 + \beta_{2\text{-}3} \mathbb{1}[K_j \in \{2, 3\}] + \beta_{4+} \mathbb{1}[K_j \ge 4] + \sum_k \gamma_k x_{jk} + e_j$$
+$$E_\text{after}(J) = \frac{1}{|J|} \sum_{j \in J} \begin{cases} p_j & d_j = +1 \\ 1 - p_j & d_j = -1 \end{cases}, \qquad E_\text{before}(J) = \frac{1}{|J|} \sum_{j \in J} \begin{cases} p_{j^-} & d_j = +1 \\ 1 - p_{j^-} & d_j = -1 \end{cases}$$
 
-where the $x_{jk}$ are dummies for question type, category, money band, price band, time to
-the end, market lifetime, year and direction. With the weights, $\beta_0 + \beta$ reproduce the
-overshoot shares.
+**Share of the way.** How far the jumps went toward being right, from the old price
+($S = 0$) to the new one ($S = 1$):
 
-**Wallets (F2).** For each wallet with at least 10 single-trader jumps, $\mathrm{OS}$ over the first
-half of its jumps (in time) and over the second half; the figure reports their correlation.
+$$S(J) = \frac{A(J) - E_\text{before}(J)}{E_\text{after}(J) - E_\text{before}(J)}$$
 
-**Other candidates (F4).** For a jump $j$ in a neg-risk event, with $\Delta p_m$ the price changes of
-the other candidates $m$ in the same 30 minutes:
+Without the usual error ($b = 0$), $S(J) = 1 - \mathrm{OS}(J)$ exactly. For one jump,
+$(p_j - O_j)\,d_j$ is $p_j - O_j$ for an up jump and $(1 - p_j) - (1 - O_j)$ for a down jump, which is the
+implied rate minus the hit; and $|\Delta p_j|$ is the after-rate minus the before-rate. Summing over
+$J$ and dividing by $|J|$ gives $\mathrm{OS} = (E_\text{after} - A)/(E_\text{after} - E_\text{before}) = 1 - S$. So accuracy is the
+overshoot seen from another angle, not a separate test.
+
+#### Uncertainty
+
+**Ranges.** Jumps of the same market are not independent, so whole markets are resampled: draw
+as many markets as there are, with replacement, $M$ times; recompute the statistic each time; the
+range is the 2.5th to the 97.5th percentile of the $M$ values (a 95% range).
+
+#### Trader groups (F2)
+
+**Groups.** A jump is made by "one trader" if $K_j = 1$, by "a crowd" if $K_j \ge K$, and by "a few
+traders" in between.
+
+**All factors at once.** A weighted least-squares regression over jumps, with weight $|\Delta p_j|$:
+
+$$\frac{o_j(p_j)}{|\Delta p_j|} = \beta_0 + \beta_\text{few}\,\mathbb{1}[1 < K_j < K] + \beta_\text{crowd}\,\mathbb{1}[K_j \ge K] + \sum_k \gamma_k x_{jk} + e_j$$
+
+The $x_{jk}$ are 0/1 indicators for question type, category, year, direction and, for each
+continuous control (money, price before the jump, time to the end date, market lifetime), its
+quantile bin among $C$ equal-count bins. Weighting by $|\Delta p_j|$ makes the fitted values
+reproduce the overshoot shares, so $\beta_\text{crowd}$ is the crowd-vs-one-trader gap with all the
+controls held fixed.
+
+**Wallets.** For each wallet with at least $m_w$ single-trader jumps, $\mathrm{OS}$ of the first half of its
+jumps (in time) and of the second half; the report gives their correlation across wallets. A
+high correlation would mean some wallets always overshoot.
+
+#### Other candidates (F4)
+
+**Offset.** For a jump $j$ in a neg-risk race, with $\Delta p_m$ the price change of each other candidate
+$m$ in the same slot:
 
 $$\phi_j = -\frac{\sum_{m \ne j} \Delta p_m}{\Delta p_j}$$
 
-Groups: no other candidate traded; $\phi < 0.25$ (not offset); $0.25 \le \phi < 0.75$ (partly); $\phi \ge 0.75$ (offset).
+$\phi = 1$: the others fell by exactly as much as $j$ rose; $\phi = 0$: they did not move. Groups: no
+other candidate traded; $\phi < \phi_\text{lo}$ (not offset); $\phi_\text{lo} \le \phi < \phi_\text{hi}$ (partly); $\phi \ge \phi_\text{hi}$ (offset).
 
-**Betting against a jump (F5).** Enter at $e_j$, the VWAP of the first 8 trades on the bettor's
-side within 1 hour: after an up jump buy NO at $1 - e_j$, after a down jump buy YES at $e_j$, and
-hold to the end. Return per $1 staked:
+#### Betting against jumps (F5)
 
-$$\rho_j = \frac{d_j \, (e_j - O_j)}{\sigma_j}, \qquad \sigma_j = \begin{cases} 1 - e_j & d_j = +1 \\ e_j & d_j = -1 \end{cases}$$
+**Return per dollar.** Right after the jump, buy the opposite side at $e_j$, the VWAP of the first $N$
+trades on the bettor's side within $T$ (after an up jump, buy NO at $1 - e_j$; after a down jump, buy
+YES at $e_j$), and hold to the end:
 
-"Net" adds back the usual error, $\rho_j + d_j\, b(e_j) / \sigma_j$. Only jumps with $0.05 \le p_{j^-} \le 0.95$;
-returns clipped at the 1st and 99th percentile of all bets; the mean is reported.
+$$\rho_j = \frac{d_j\,(e_j - O_j)}{\sigma_j}, \qquad \sigma_j = \begin{cases} 1 - e_j & d_j = +1 \\ e_j & d_j = -1 \end{cases}$$
 
-**Market structure (F6)**, per market with at least 20 slots with trades:
-- Kyle's lambda $\lambda$: the slope of $\Delta \ell_s = \alpha + \lambda \, F_s + e_s$ over consecutive slots at most 2 h
-  apart, with $F_s$ the net taker buying of YES in $1,000s;
-- Roll spread: $2\sqrt{-\operatorname{cov}(\Delta p_t, \Delta p_{t-1})}$ over consecutive trades (0 if the covariance is positive);
-- Gini and Herfindahl $H = \sum_w s_w^2$ of the taker wallets' dollar shares $s_w$, and the top wallet's share;
-- the target: the share of the market's price jumps made by a single trader.
-Correlations are Spearman's, partial on the log of traders, dollars and slots.
+$\sigma_j$ is the price of the bet (the stake per share) and $d_j(e_j - O_j)$ the gain per share.
+"Net" removes the usual error: $\rho^\text{net}_j = \rho_j + d_j\, b(e_j)/\sigma_j$.
 
-**Crypto up/down (F8).** As above with $\Delta$ = 1 minute, next trades within 5 minutes, and a
-window cut only at the settle moment. The other coin "moved" in the same minute if
-$|\Delta \ell| \ge 0.1$.
+**Which bets, and the trimmed mean.** Bets only on jumps that started inside $[\eta, 1 - \eta]$; below
+that the opposite side costs a few cents and one win pays dozens of times the stake. The
+reported return clips every $\rho^\text{net}_j$ to the $\tau$ and $1 - \tau$ quantiles of all bets, then averages.
 
-**Matrix profile (F9).** For windows $T_a$, $T_b$ of length $m$, with means $\mu$, standard
-deviations $\sigma$ and correlation $\rho_{ab}$, the z-normalised distance and the profile are
+**Spread.** The median of $(e^\text{with}_j - e_j)\,d_j$, where $e^\text{with}_j$ is the same average on the side of the jump:
+what crossing from one side to the other costs.
 
-$$D(a, b) = \sqrt{2m\,(1 - \rho_{ab})}, \qquad P_a = \min_{b \text{ in another event}} D(a, b)$$
+#### Market structure (F6)
 
-A path "has a close match" if $P_a < R$, with $R$ the 5th percentile of the profile of the
-shuffled paths.
+Computed per market, over its used slots, for markets with at least $S_\text{min}$ slots with trades.
 
-**Signs at the time of a jump (F10).** crowd $K_j \ge 4$; money $U_j \ge \$1{,}000$; co-jump: another
-market of the same event jumped in the same slot; follow-up: a trade within 5 minutes of the
-slot's close. After the fact, by $1 - g_j$, the share of the jump the next trades kept:
-reversed fully ($< 0$), gave back over half ($0$ to $0.5$), kept over half ($0.5$ to $1$), went further ($> 1$).
+- **One-trader rate (the target):** single-trader jumps per 100 slots with trades.
+- **Kyle's lambda:** the slope $\lambda$ of $\Delta\ell_s = \alpha + \lambda F_s + e_s$ fitted by least squares, where $\Delta\ell_s$ is the
+  log-odds change from the previous slot (at most $g_\text{max}$ apart) and $F_s$ is the net taker buying of YES
+  in the slot, in thousands of dollars. It is how far $1,000 of net buying moves the price.
+- **Roll spread:** $2\sqrt{-\operatorname{cov}(\Delta y_i, \Delta y_{i-1})}$ over consecutive trades (0 if the covariance is positive).
+  When trades bounce between the buy and the sell price, consecutive changes have negative
+  covariance, and its size gives the spread.
+- **Buy-sell gap:** in each window of $w_s$ seconds with both taker buys and taker sells, the VWAP of
+  the buys minus the VWAP of the sells; the market's median.
+- **Variance ratio:** $\mathrm{VR}(L) = \operatorname{var}(\ell_{s} - \ell_{s-L}) / (L \cdot \operatorname{var}(\ell_s - \ell_{s-1}))$. Below 1, changes tend to reverse.
+- **Two-sidedness:** $2\sum_s \min(B_s, S_s) / \sum_s (B_s + S_s)$, with $B_s$, $S_s$ the taker buys and sells in dollars;
+  1 = perfectly balanced, 0 = one-sided.
+- **Concentration:** with $a_w$ wallet $w$'s share of the market's taker dollars, the Herfindahl index
+  $H = \sum_w a_w^2$, the top wallet's share $\max_w a_w$, the share of the top 10% of wallets, and the Gini
+  index $G = \frac{\sum_i \sum_k |x_i - x_k|}{2 n^2 \bar x}$ over the $n$ wallets' dollar amounts $x$ (0 = equal, 1 = one wallet).
+- **Partial rank correlation:** each measure and the target are turned into ranks, the ranks are
+  regressed on the log of traders, dollars and slots (market size), and the correlation of the
+  two residuals is reported. It answers "at the same size, do markets with a higher measure see
+  more single-trader jumps?"
 
-**Elbow (knee) of a curve** $(x_k, y_k)$, $k = 0 \dots n$ (Kneedle, Satopää et al. 2011). Scale both axes
-to [0, 1], $\hat x_k = \frac{x_k - \min x}{\max x - \min x}$ and the same for $\hat y_k$; the knee is the point farthest from
-the straight line through the first and last points:
+Tags: the same, over tags with at least $n_\text{tag}$ markets.
+
+#### Crypto up/down (F8)
+
+The same definitions, with the crypto values of $\Delta$, $\theta$, $c_\text{start}$, $c_\text{end}$, $\varepsilon$, $\kappa$, $N$ and $T$
+(section 6.2). The related market (the other coin, or the same coin's market of another length)
+"moved" in the jump's minute if its log-odds changed by at least $\mu$ over that minute.
+
+#### Pattern search (F9)
+
+**Path.** For a jump $j$, its prices at steps of $a$ minutes from $b_-$ minutes before to $b_+$ minutes
+after the slot's close, each the last slot price at that time, in log-odds: a window of
+$m = (b_- + b_+)/a + 1$ points. Paths need price changes in at least $n_\text{chg}$ of their post-jump
+steps, and jumps need at least $H$ hours of the market's window left.
+
+**Distance and matrix profile.** Two windows $X$ and $Y$ of $m$ points are compared after
+z-normalising each (subtracting its mean and dividing by its standard deviation), so only their
+shapes count:
+
+$$D(X, Y) = \sqrt{2m\,\big(1 - \rho_{XY}\big)}$$
+
+where $\rho_{XY}$ is their correlation. The matrix profile of a window is its distance to its nearest
+neighbour in *another* event: $P_X = \min_{Y} D(X, Y)$.
+
+**Chance comparison.** Surrogate paths keep each jump's pre-jump part and jump, with the
+post-jump steps shuffled. A path "has a close match" if $P_X < R$, where $R$ is the $r$-th
+percentile of the surrogates' profiles. Real paths are compared with the surrogates at the same
+$R$; a recurring shape would give many more matches than chance. The search uses every
+path that passes the filters.
+
+**Crypto chains.** Each up/down market's price at $n_\text{cx}$ evenly spaced points over its window, for
+markets with at least $n_\text{tr}$ trades in it; the markets of one coin back to back form one long
+series, searched with windows of one market ($n_\text{cx}$ points).
+
+#### Signs at the time of a jump (F10)
+
+crowd: $K_j \ge K$; money: $U_j \ge X$; co-jump: another market of the same event jumped in the same
+slot; follow-up: a trade within $\tau_f$ seconds of the slot's close.
+
+#### The elbow method
+
+**Knee of a curve.** Given a curve $(x_k, y_k)$, $k = 0, \dots, n$, over a stated range, both axes are scaled
+to [0, 1]:
+
+$$\hat x_k = \frac{x_k - \min x}{\max x - \min x}, \qquad \hat y_k = \frac{y_k - \min y}{\max y - \min y}$$
+
+and the knee is the point farthest from the straight line through the first and the last point
+(the Kneedle rule, Satopää et al. 2011):
 
 $$k^\ast = \arg\max_k \frac{\big|(\hat y_n - \hat y_0)(\hat x_k - \hat x_0) - (\hat x_n - \hat x_0)(\hat y_k - \hat y_0)\big|}{\sqrt{(\hat x_n - \hat x_0)^2 + (\hat y_n - \hat y_0)^2}}$$
 
-### 6.2 Data and price jumps
+Before the knee the curve changes fast; after it, slowly. The axis of $x$ is always linear,
+even for parameters tried over a wide range (dollars, seconds), where some figures display
+it on a log scale for reading only. For curves that are shares of jumps, only points backed
+by at least 1,000 jumps are used.
 
-| Step | Choice |
-|---|---|
-| Markets | all event markets with trades; recurring crypto up/down markets analysed separately (F8) |
-| YES price per trade | `price` if the traded token is token 1, else `1 - price` |
-| Slots | **30 min** (main); 5 and 60 min as checks; **1 min** for crypto up/down |
-| Slot price | volume-weighted average (VWAP); checked against the plain average of trades |
-| Price scale | log-odds `log(p / (1 - p))`, p clipped to [0.01, 0.99] |
-| **Price jump** | a slot whose price is ≥ **13 points** from the previous slot with trades (checks: 8 and 18) |
-| Window | a market's life runs from its first slot to the last slot inside [5%, 95%] when it ends outside that band (else to its last slot); the first and last **5%** of it are left out. F8: only the slots after that last slot are left out |
-| Outcome | first outcome price > 0.99 → YES, < 0.01 → NO, otherwise the market is left out |
-| Categories, question types | first match of a text rule on the tags / question |
+**Parameters that depend on each other** are set together by a fixed-point search. Start from
+any values; set each parameter to the knee of its curve with all the others at their current
+values; repeat until no knee moves:
 
-### 6.3 Overshoot and statistics
+$$\theta^{(t+1)} = \operatorname{knee}_\theta\big(\Delta^{(t)}, c^{(t)}, \dots\big), \quad \Delta^{(t+1)} = \operatorname{knee}_\Delta\big(\theta^{(t+1)}, c^{(t)}, \dots\big), \quad \dots$$
 
-| Item | Choice |
-|---|---|
-| Usual error (baseline) | mean (outcome - price) in 20 price bins of 5 points, at random moments (a 5% sample of slots); pooled for F1, per category for F2-F3 and F7, per question type for F4-F5, per coin and length for F8 |
-| Overshoot | `-((outcome - p) - baseline(p)) × sign(jump)` at any later price p; shared as Σ overshoot / Σ \|jump\| |
-| Next trades | the first **8 trades** after the slot, within **1 h** (5 min for crypto) |
-| Trader groups | distinct taker wallets in the jump's slot: **1 / 2-3 / 4+** |
-| Uncertainty | resampling whole markets, 200-300 times |
-| All factors at once (F2) | weighted least squares, weight \|jump\|; dummies for traders, question type, category, money, price band, time to end, lifetime, year, direction |
-| Wallets (F2) | wallets with ≥ 10 single-trader jumps; overshoot in the first vs second half of their history |
-| Betting against jumps (F5) | entry = first 8 trades on the bettor's side within 1 h; return per $ = sign × (entry - outcome) / stake; jumps starting between 5% and 95%; returns trimmed at the 1st and 99th percentile |
-| Market structure (F6) | markets with ≥ 20 active slots; Kyle's lambda = slope of the slot's price change on net buying (consecutive slots ≤ 2 h apart, ≥ 20 slots); Roll spread; Spearman correlations controlling for traders, money and slots |
-| Other candidates (F4) | neg-risk events (`neg_risk` = 1); offset = −(sum of the other candidates' price changes in the slot) / the jump; groups: none traded, < 25%, 25-75%, ≥ 75% |
-| Crypto (F8) | other coin = ether for bitcoin, bitcoin for the others; "moved" = ≥ 0.1 log-odds in the same minute |
+At the end, every parameter is the knee of its own curve given all the others.
 
-### 6.4 Pattern search (F9)
+### 6.2 Parameters and how each was chosen
+
+Every value is the knee of a curve (Kneedle rule, linear axis), drawn in section 2. "Jumps
+kept" curves count the price jumps; the jump-definition knees were found together, each with
+the others at their knees, on a random quarter of the markets (8 of 32 groups).
+
+**What a price jump is (event markets)**
+
+| Parameter | Symbol | Value | Curve | Range tried |
+|---|---|---|---|---|
+| Slot length | $\Delta$ | **30 min** | jumps kept | 1 min - 2 h |
+| Jump threshold | $\theta$ | **16 points** | jumps kept | 5 - 50 points |
+| Cut at the start of life | $c_\text{start}$ | **7.5%** | jumps kept | 0 - 30% |
+| Cut at the end of life | $c_\text{end}$ | **4.5%** | jumps kept | 0 - 30% |
+| Settle band | $\varepsilon$ | **3 points** (3-97%) | jumps kept | 1 - 20 points |
+| Price clip | $\kappa$ | **2 points** (nearly flat curve) | jumps kept | 0.1 - 5 points |
+| Next trades: how many | $N$ | **7 trades** | overshoot at the next trades | 1 - 16 |
+| Next trades: how long | $T$ | **45 min** | jumps with next trades | 1 - 180 min |
+| Outcome | $Q$ | **0.995** | markets with a clear outcome | 0.5 - 1 |
+
+**Crypto up/down markets (F8)**
+
+| Parameter | Value | Range tried |
+|---|---|---|
+| Slot length | **1 min** | 15 s - 5 min |
+| Jump threshold | **18 points** | 5 - 50 points |
+| Cut at the start / end of life | **20% / 8%** | 0 - 30% |
+| Settle band, price clip | **3 points, 2 points** | 1 - 20, 0.1 - 5 points |
+| Next trades | **3 trades within 2 min** | 1 - 16 trades, 15 s - 15 min |
+| A related market "moved" ($\mu$) | **0.75 in log-odds** | 0.01 - 1 |
+
+**Statistics and groups**
+
+| Parameter | Symbol | Value | Curve | Range tried |
+|---|---|---|---|---|
+| Random sample for the baseline | $\rho$ | **1% of slots** | spread of the overshoot over 20 redraws | 0.1 - 5% |
+| Price bins of the baseline | $W$ | **20** (5 points each) | share of the calibration error explained | 2 - 100 |
+| Resamples for the ranges | $M$ | **150** | spread of a range's end over 40 repeats | 10 - 1,000 |
+| Crowd | $K$ | **5 traders** | overshoot of jumps with at least $K$ traders | 1 - 30 |
+| Big money | $X$ | **$200** | overshoot of jumps with at least $X$ in the slot | $1 - $100k |
+
+**Settings of the findings**
+
+| Finding | Parameter | Symbol | Value | Curve | Range tried |
+|---|---|---|---|---|---|
+| F1 | tags shown | | **200+ markets with jumps** | tags kept | 10 - 2,000 |
+| F2 | wallets in the persistence check | $m_w$ | **8+ single-trader jumps** | wallets kept | 2 - 50 |
+| F2 | bins of each continuous control | $C$ | **3** | crowd gap with all else fixed | 2 - 10 |
+| F4 | "not offset" below / "offset" from | $\phi_\text{lo}$, $\phi_\text{hi}$ | **0.55 / 1.0** | crowd overshoot below / from the cut | 0.05 - 1.5 |
+| F5 | price band of the bets | $\eta$ | **none** (flat curve) | spread of the returns | 0 - 20 points |
+| F5 | trim at each end | $\tau$ | **2.5%** | trimmed mean return | 0 - 10% |
+| F6 | slots per market | $S_\text{min}$ | **50+** | markets kept | 5 - 200 |
+| F6 | Kyle's lambda: slots at most apart | $g_\text{max}$ | **8 h** | pairs of slots kept | 0.5 - 48 h |
+| F6 | variance ratio lag | $L$ | **6 slots** | median variance ratio | 2 - 16 |
+| F6 | buy-sell window | $w_s$ | **120 s** | windows with both sides | 10 s - 10 min |
+| F6 | tags | $n_\text{tag}$ | **200+ markets** | tags kept | 10 - 2,000 |
+| F9 | step between path points | $a$ | **10 min** | error against the 1-minute path | 1 - 30 min |
+| F9 | path start before / end after the close | $b_-$, $b_+$ | **30 / 120 min** | distance from the price at the close | 0 - 60, 0 - 480 min |
+| F9 | price changes in the path | $n_\text{chg}$ | **3+** | paths kept | 0 - 12 |
+| F9 | hours of window left | $H$ | **2+** | paths that run into the settle band | 0 - 24 h |
+| F9 | match radius | $r$ | **15th percentile** | surrogate profile | 1 - 50 |
+| F9 | points per crypto market | $n_\text{cx}$ | **30** | error against a 120-point path | 4 - 120 |
+| F9 | trades per crypto market | $n_\text{tr}$ | **50+** | markets kept | 1 - 100 |
+| F10 | follow-up trade within | $\tau_f$ | **20 min** | overshoot of jumps with a follow-up | 1 - 45 min |
+
+Not tuned: the 95% level of the ranges (a convention); the splits used only to display a
+finding (price bands, time to the end date, years, sports, histogram bins).
+
+### 6.3 Pattern search (F9)
 
 | Search | Series | Window | Distance | Chance comparison |
 |---|---|---|---|---|
-| After price jumps | 55 five-minute prices per jump (−35 min to +4 h), 19,226 jumps with ≥ 6 h of the window left | 55 | z-normalised; matches must be in another event; paths need ≥ 8 price changes | post-jump steps shuffled |
-| Bitcoin chain | bitcoin 15-min markets back to back, 30 points each (673,620 points) | 30 | z-normalised, `stumpy.stump` | profile vs 200 shuffles |
+| After price jumps | 16 prices per jump, every 10 min from 30 min before to 120 min after the slot's close; 22,089 jumps with at least 3 price changes and 2 hours of window left | 16 | z-normalised; matches must be in another event | post-jump steps shuffled; radius = 15th percentile of the shuffled paths' profile |
+| Bitcoin chain | bitcoin 15-min markets back to back, 30 points each, markets with 50+ trades | 30 | z-normalised, `stumpy.stump` | profile vs shuffles |
 | Coin pairs | the 4 coins' 15-min chains, AB-joins | 30 | `stumpy.stump(T_A, 30, T_B)` | other coin shuffled in time |
 
-### 6.5 Computing and plots
+### 6.4 Computing and plots
 
 - **Server:** each extraction step runs on 2 threads within 8 GB of memory. Regrouping the
   766 million trades takes one pass of about 30 minutes.
 - **Plots:** Python with numpy, pandas, scipy, stumpy and matplotlib, in the Rose Pine Dawn
-  theme. The trader groups have fixed colours: 1 trader = rose-red, 2-3 = gold, 4+ = pine blue.
+  theme. The trader groups have fixed colours: 1 trader = rose-red, 2-4 = gold, 5+ = pine blue.
 
 ---
 
@@ -713,11 +923,11 @@ $$k^\ast = \arg\max_k \frac{\big|(\hat y_n - \hat y_0)(\hat x_k - \hat x_0) - (\
 | **YES price** | Price of the share that pays $1 if the event happens; read as a probability |
 | **Log-odds** | `log(p / (1 - p))`; stretches the scale near 0% and 100% |
 | **Slot** | A 30-minute window in which trades are grouped |
-| **Price jump** | A slot whose price is ≥ 13 points from the previous slot with trades |
-| **Life of a market** | From its first trade to the moment its price leaves 5-95% for good (or its last trade); the first and last 5% are left out |
+| **Price jump** | A slot whose price is ≥ 16 points from the previous slot with trades |
+| **Life of a market** | From its first trade to the moment its price leaves 3-97% for good (or its last trade); the first 7.5% and the last 4.5% are left out |
 | **Maker / taker** | The maker posted an order and waited; the taker accepted it, moving the price ("taking liquidity") |
 | **Overshoot** | The part of a jump that the final outcome did not justify, beyond the usual error, as a % of the jump |
-| **Next trades** | The first eight trades after a jump |
+| **Next trades** | The first seven trades after a jump's slot, within 45 minutes |
 | **Neg-risk event** | A Polymarket race whose candidates exclude each other; a NO share in one converts into YES shares of all the others, which links their prices and gives the long shots liquidity |
 | **Spread** | The gap between the price to buy and the price to sell |
 | **Kyle's lambda** | How far $1,000 of net buying moves the price |
@@ -738,9 +948,8 @@ $$k^\ast = \arg\max_k \frac{\big|(\hat y_n - \hat y_0)(\hat x_k - \hat x_0) - (\
 | F7, F8 | `explore/r07_sports.py`, `r05_updown.py` |
 | F9 | `explore/r04_motifs.py`, `r04_btc_chain.py`, `r05_crypto_mp.py` |
 | F10 | `explore/r10_information.py` |
-| Parameters (elbow) | `remote/s11_elbow.py`; `explore/r11_elbow.py` |
+| Parameters (elbow) | `remote/s12_grid.py`; `explore/elbow.py` (the knee), `r12_joint.py`, `r12_params.py`, `r12_f9.py`; every value in `explore/r02_persistence.py` |
 | Traders one by one, give-back, pointing the right way | `explore/r11_traders.py` |
-| Definition checks | `remote/s9_window.py`, `s9_variants.py`; `explore/r09_threshold.py`, `r09_window.py`, `r09_sweep.py`, `r09_crypto.py`, `r08_filters.py` |
 | This report | `explore/report_stats.py`, `report_figures.py`, `report_style.py` |
 
 **Related work:** Tsang & Yang, "Political Shocks and Price Discovery in Prediction Markets"

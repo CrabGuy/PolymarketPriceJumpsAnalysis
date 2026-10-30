@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import outcomes, sigmoid  # noqa: E402
+from r02_persistence import CROWD, TAG_MIN_JUMPS, TG_LABELS, outcomes, random_slots, sigmoid  # noqa: E402
 from r03_robustness import BINS  # noqa: E402
 
 TYPES = [
@@ -70,7 +70,7 @@ def share(x, col):
 
 def main():
     info = market_info()
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
+    rnd = random_slots()
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()].join(info, on="market")
     cb = baseline(rnd, "qtype")
@@ -90,7 +90,7 @@ def main():
     for qt, x in t.groupby("qtype"):
         r = {"qtype": qt, "markets": x.market.nunique(), "moves": len(x),
              "close": share(x, "oq"), "next trades": share(x, "oqe")}
-        for tg in ("1", "4+"):
+        for tg in ("1", CROWD):
             s = x[x.tg == tg]
             r[f"close, {tg} taker"] = share(s, "oq")
             r[f"next, {tg} taker"] = share(s, "oqe")
@@ -107,7 +107,7 @@ def main():
         r = {"lifetime": lf, "markets": x.market.nunique(), "moves": len(x),
              "median delay to next trades (% of life)": x.delay_share.median() * 100,
              "close": share(x, "oq"), "next trades": share(x, "oqe")}
-        for tg in ("1", "2-3", "4+"):
+        for tg in TG_LABELS:
             s = x[x.tg == tg]
             r[f"close {tg}"] = share(s, "oq")
             r[f"next {tg}"] = share(s, "oqe")
@@ -122,11 +122,11 @@ def main():
     tags = tags[~tags.tag.isin(["all", "hide-from-new", "games"])]
     tb = big[["market", "oq", "absdp", "tg"]].merge(tags[["market", "tag"]], on="market")
     cnt = tb.groupby("tag").market.nunique()
-    keep = cnt[cnt >= 300].index
+    keep = cnt[cnt >= TAG_MIN_JUMPS].index
     tag_tab = tb[tb.tag.isin(keep)].groupby("tag").apply(lambda x: pd.Series({
         "markets": x.market.nunique(), "overshoot": share(x, "oq"),
-        "1 taker": share(x[x.tg == "1"], "oq"), "4+ takers": share(x[x.tg == "4+"], "oq")}))
-    tag_tab["ordering holds"] = tag_tab["1 taker"] > tag_tab["4+ takers"]
+        "1 taker": share(x[x.tg == "1"], "oq"), "crowd": share(x[x.tg == CROWD], "oq")}))
+    tag_tab["ordering holds"] = tag_tab["1 taker"] > tag_tab["crowd"]
     print(f"\ntags with 300+ markets: {len(tag_tab)}; ordering 1 > 4+ holds in {tag_tab['ordering holds'].mean():.0%}")
     print(tag_tab.sort_values("overshoot").round(3).to_string())
 

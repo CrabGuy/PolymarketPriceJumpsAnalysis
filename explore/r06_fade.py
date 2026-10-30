@@ -30,16 +30,16 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import outcomes  # noqa: E402
+from r02_persistence import BET_BAND, MONEY_X, N_RESAMPLES, outcomes, random_slots  # noqa: E402
 from r04_types import osh, baseline, market_info  # noqa: E402
 
 OUT = "local_data/r06/"
-N_BOOT = 300
+N_BOOT = N_RESAMPLES
 
 
 def calib():
     info = market_info()
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
+    rnd = random_slots()
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()].join(info, on="market")
     return baseline(rnd, "qtype")
@@ -113,10 +113,10 @@ def main():
     t = t[t.fade_px.notna() & t.follow_px.notna()].copy()
     # Bets only on moves starting between 5% and 95%: near 0 or 1 the stake of the opposite
     # side is a few cents, and returns per $ explode (+-50x), swamping every average.
-    t = t[t.y_pre.between(0.05, 0.95)].copy()
+    t = t[t.y_pre.between(BET_BAND, 1 - BET_BAND)].copy()
     t = add_returns(t, cb)
     t["fast"] = np.where(t.fade_delay <= 300, "fader trade within 5 min", "later")
-    t["money"] = pd.cut(t.usd, [0, 100, 1000, np.inf], labels=["<$100", "$100-1k", ">$1k"])
+    t["money"] = pd.cut(t.usd, [0, MONEY_X, np.inf], labels=["below", "above"])
     t["fader $ 1h"] = pd.cut(t.fade_usd_1h, [-1, 100, 1000, np.inf], labels=["<$100", "$100-1k", ">$1k"])
     print(f"moves with prices on both sides: {len(t):,} in {t.market.nunique():,} markets")
     a = summarize(t, "tg", "A by takers")

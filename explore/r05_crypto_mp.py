@@ -31,10 +31,11 @@ import stumpy
 
 sys.path.insert(0, "explore")
 from r05_updown import market_info, logit  # noqa: E402
+from r02_persistence import CX_MIN_TRADES, CX_POINTS  # noqa: E402
 
 OUT = "local_data/r05/"
-M = 30
-MIN_TRADES = 10
+M = CX_POINTS
+MIN_TRADES = CX_MIN_TRADES
 COINS = ["bitcoin", "ethereum", "solana", "xrp"]
 
 

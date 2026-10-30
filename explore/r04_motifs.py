@@ -29,13 +29,17 @@ import numpy as np
 import pandas as pd
 import stumpy
 
-M = 55
-MOVE_AT = 7           # first post-move point (index of offset 0 is 7: the move bar's last step)
-N_SAMPLE = 20000
+sys.path.insert(0, "explore")
+from r02_persistence import (CLIP, F9_AFTER, F9_BEFORE, F9_HOURS_LEFT, F9_MIN_CHANGES,  # noqa: E402
+                             F9_RADIUS_PCT, F9_SAMPLE, F9_STEP)
+
+M = (F9_BEFORE + F9_AFTER) // F9_STEP + 1     # points per path
+MOVE_AT = F9_BEFORE // F9_STEP               # index of the slot's close
+N_SAMPLE = F9_SAMPLE
 N_MOTIFS = 8
 SEED = 0
 PATHS = "local_data/r04_paths"
-MIN_ACTIVE_STEPS = 8
+MIN_ACTIVE_STEPS = F9_MIN_CHANGES
 
 
 def znorm(W):
@@ -83,13 +87,20 @@ def surrogate(L, rng):
     return S
 
 
+def hours_left():
+    """Each market's window end (the last slot kept by remote/s2_events.window)."""
+    m = pd.concat([pd.read_parquet(f, columns=["market", "t1"]) for f in glob.glob("local_data/r02_events/m*.parquet")])
+    return m.drop_duplicates("market").set_index("market").t1
+
+
 def load(n_sample):
     p = pd.concat([pd.read_parquet(f) for f in glob.glob(f"{PATHS}/moves_*.parquet")], ignore_index=True)
     t = pd.read_parquet("local_data/r03_big_moves_main.parquet")
     # the 4 h path must stay inside the market's window: otherwise short markets (games) run
     # into their resolution after the jump, and those paths all match each other trivially.
     # ret_6h is set only when the window has 6 h left after the jump (remote/s2_events.py).
-    t = t[t.ret_6h.notna()]
+    left = hours_left()
+    t = t[((left.reindex(t.market.values).values - t.t_close.values) / 3600) >= F9_HOURS_LEFT]
     info = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "event_id"])
     info = info[pd.to_numeric(info.id, errors="coerce").notna()]
     ev = pd.Series(info.event_id.values, index=info.id.astype(int).values)
@@ -98,7 +109,7 @@ def load(n_sample):
     P = p.filter(regex=r"^p\d+$").values.astype("float64")
     ok = np.isfinite(P).all(1)
     p, P = p[ok].reset_index(drop=True), P[ok]
-    L = np.log(np.clip(P, 0.01, 0.99) / (1 - np.clip(P, 0.01, 0.99)))
+    L = np.log(np.clip(P, CLIP, 1 - CLIP) / (1 - np.clip(P, CLIP, 1 - CLIP)))
     # orient every window so the move goes up (shape, not direction)
     L = L * p.sgn.values[:, None]
     # Trivial-match filter: a window that is flat apart from the jump (no trades after it)
@@ -117,7 +128,7 @@ def describe(L):
     """Simple shape numbers for a set of oriented windows (log-odds)."""
     pre, mv = L[:, MOVE_AT - 3], L[:, MOVE_AT]
     size = mv - pre
-    keep_30m = (L[:, MOVE_AT + 6] - pre) / size
+    keep_30m = (L[:, MOVE_AT + 30 // F9_STEP] - pre) / size
     keep_4h = (L[:, -1] - pre) / size
     run_up = (L[:, MOVE_AT - 3] - L[:, 0]) / size
     return {"kept after 30 min": np.median(keep_30m), "kept after 4 h": np.median(keep_4h),
@@ -142,9 +153,9 @@ def main(n_sample=N_SAMPLE):
     Ls = surrogate(L, rng)
     Zs, _ = znorm(Ls)
     Ps, _ = set_profile(Zs, groups)
-    R = np.percentile(Ps, 5)                                   # a radius rarely reached by chance
+    R = np.percentile(Ps, F9_RADIUS_PCT)                       # a radius rarely reached by chance
     print(f"{len(L):,} windows from {p.market.nunique():,} markets; profile median real {np.median(P):.2f} "
-          f"vs surrogate {np.median(Ps):.2f}; radius R = surrogate 5th pct = {R:.2f}")
+          f"vs surrogate {np.median(Ps):.2f}; radius R = surrogate F9_RADIUS_PCT-th pct = {R:.2f}")
     print(f"share of windows with a cross-event match within R: real {np.mean(P <= R):.3f} vs surrogate {np.mean(Ps <= R):.3f}")
 
     real_sets = motif_sets(Z, P, R)

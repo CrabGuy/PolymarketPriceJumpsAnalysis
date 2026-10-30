@@ -26,8 +26,13 @@ Usage: python explore/r05_siblings.py
 """
 import glob
 
+import sys
+
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, "explore")
+from r02_persistence import N_RESAMPLES  # noqa: E402
 
 OUT = "local_data/r05/"
 GROUPS = ["isolated", "not offset", "partly offset", "offset"]
@@ -37,7 +42,7 @@ def share(x, col):
     return x[col].sum() / x.absdp.sum()
 
 
-def boot_share(x, col, n=200):
+def boot_share(x, col, n=N_RESAMPLES):
     g = x.groupby("market").agg(a=(col, "sum"), b=("absdp", "sum"))
     rng = np.random.default_rng(2)
     a, b = g.a.values, g.b.values

@@ -21,11 +21,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import MIN_PTS, category  # noqa: E402
+from r02_persistence import CLIP, MIN_PTS, category  # noqa: E402
 
 
 def logit(p):
-    p = np.clip(p, 0.01, 0.99)
+    p = np.clip(p, CLIP, 1 - CLIP)
     return np.log(p / (1 - p))
 
 

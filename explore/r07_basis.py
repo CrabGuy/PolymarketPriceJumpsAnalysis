@@ -21,9 +21,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import MIN_PTS, outcomes, sigmoid  # noqa: E402
+from r02_persistence import CLIP, MIN_PTS, N_BINS, N_RESAMPLES, TG_EDGES, TG_LABELS, outcomes, sigmoid  # noqa: E402
 
-BINS = np.linspace(0, 1, 21)
+BINS = np.linspace(0, 1, N_BINS + 1)
 
 
 def load(src, price_col, entry_col):
@@ -36,12 +36,12 @@ def load(src, price_col, entry_col):
     base = (r.outcome - r.price).groupby(pd.cut(r.price, BINS), observed=False).mean()
     e["outcome"] = e.market.map(out)
     e = e[e.outcome.notna()].copy()
-    L_pre = np.log(np.clip(e.y_pre, .01, .99) / (1 - np.clip(e.y_pre, .01, .99)))
+    L_pre = np.log(np.clip(e.y_pre, CLIP, 1 - CLIP) / (1 - np.clip(e.y_pre, CLIP, 1 - CLIP)))
     e["p_close"] = sigmoid(L_pre + e.move)
     e["absdp"] = (e.p_close - e.y_pre).abs()
     e = e[e.absdp >= MIN_PTS].copy()
     e["sgn"] = np.sign(e.move)
-    e["tg"] = pd.cut(e.takers, [0, 1, 3, np.inf], labels=["1", "2-3", "4+"]).astype(str)
+    e["tg"] = pd.cut(e.takers, TG_EDGES, labels=TG_LABELS).astype(str)
 
     def osh(p):
         return -((e.outcome - p) - pd.cut(p, BINS).map(base).astype(float)) * e.sgn
@@ -51,7 +51,7 @@ def load(src, price_col, entry_col):
     return e
 
 
-def share(x, col, n=200):
+def share(x, col, n=N_RESAMPLES):
     x = x[x[col].notna()]
     g = x.groupby("market").agg(a=(col, "sum"), b=("absdp", "sum"))
     a, b = g.a.values, g.b.values

@@ -44,11 +44,13 @@ import s2_events as s2
 
 OUT = "tmp/micro"
 BAR = s2.BAR
-LAMBDA_GAP_BARS = 7200 // BAR  # Kyle's lambda: consecutive active bars at most 2 h apart
-ENTRY_N = 8                    # round 11 (was 5)
-ENTRY_MAX = 3600
-MIN_BARS_KYLE = 20
-MIN_BARS_VR = 40
+LAMBDA_GAP_BARS = 8 * 3600 // BAR  # Kyle's lambda: consecutive slots at most 8 h apart (elbow)
+ENTRY_N = 7                    # as s3_events (elbow)
+ENTRY_MAX = 2700
+MIN_BARS_KYLE = 5               # low on purpose: the minimum is chosen later by the elbow method
+MIN_BARS_VR = 5
+VR_LAGS = (2, 3, 4, 6, 8, 12, 16)  # variance ratio lags, chosen later by the elbow method
+SPREAD_WINDOWS = (10, 30, 60, 120, 300, 600)  # seconds for the buy-sell gap, chosen later
 
 
 def concentration(dc):
@@ -104,10 +106,11 @@ def market_stats(d, bars):
     res = res.join(group_ols(mk[k], bars.flow.values[k] / 1000.0, dL[k], MIN_BARS_KYLE))
     b = pd.DataFrame({"m": mk[same], "d": dL[same]})
     b["c"] = b.groupby("m").d.cumsum()
-    b["r4"] = b.c - b.groupby("m").c.shift(4)
     v1 = b.groupby("m").d.agg(["var", "size"])
-    v4 = b.groupby("m").r4.var()
-    res["vr4"] = (v4 / (4 * v1["var"])).where(v1["size"] >= MIN_BARS_VR)
+    res["vr_n"] = v1["size"]
+    for q in VR_LAGS:
+        vq = (b.c - b.groupby("m").c.shift(q)).groupby(b.m).var()
+        res[f"vr{q}"] = (vq / (q * v1["var"])).where(v1["size"] >= MIN_BARS_VR)
     # USD-weighted: 2 * sum(min(B, S)) / sum(B + S) over the market's bars
     tw = pd.DataFrame({"m": bars.market.values, "mn": np.minimum(bars.buy.values, bars.sell.values),
                        "tot": (bars.buy + bars.sell).values}).groupby("m").sum()
@@ -124,15 +127,18 @@ def market_stats(d, bars):
     cov = (cv.ab - cv.a * cv.b / cv.n) / (cv.n - 1).where(cv.n > 1)
     res["roll"] = 2 * np.sqrt((-cov).clip(lower=0))
 
-    # buy-sell gap within the same minute
-    q = dc.assign(minute=dc.ts // 60).groupby(["market", "minute", "up"], sort=False).agg(
-        pv=("pv", "sum"), usd=("usd", "sum")).reset_index()
-    q["px"] = q.pv / q.usd.where(q.usd > 0)
-    w = q.pivot_table(index=["market", "minute"], columns="up", values="px").dropna()
-    if len(w) and (1 in w.columns) and (-1 in w.columns):
-        gap = (w[1] - w[-1]).groupby(level=0)
-        res["spread_med"] = gap.median()
-        res["spread_n"] = gap.size()
+    # buy-sell gap within the same window of SPREAD_WINDOWS seconds; also the number of windows
+    # with trades (spread_w_<s>) to measure how many have both sides
+    for sec in SPREAD_WINDOWS:
+        q = dc.assign(win=dc.ts // sec).groupby(["market", "win", "up"], sort=False).agg(
+            pv=("pv", "sum"), usd=("usd", "sum")).reset_index()
+        q["px"] = q.pv / q.usd.where(q.usd > 0)
+        res[f"spread_w_{sec}"] = q.groupby("market").win.nunique()
+        w = q.pivot_table(index=["market", "win"], columns="up", values="px").dropna()
+        if len(w) and (1 in w.columns) and (-1 in w.columns):
+            gap = (w[1] - w[-1]).groupby(level=0)
+            res[f"spread_med_{sec}"] = gap.median()
+            res[f"spread_n_{sec}"] = gap.size()
     for c in res.columns:
         if res[c].dtype == "float64":
             res[c] = res[c].astype("float32")

@@ -13,7 +13,7 @@ Score = how many of the four a jump has (0-4). Per score: share of jumps, oversh
 close and at the next trades (category baseline, ratio of sums, market bootstrap), and the
 share of the jump still in the price 1 h later (median).
 
-After the fact: "news-like" = 4+ traders and the next trades keep at
+After the fact: "news-like" = a crowd and the next trades keep at
 least half the jump; "noise-like" = one trader and the next trades give back at least half.
 More generally, by what the next trades did (reversed it fully / gave back more than half /
 kept more than half / went further) and by trader group. Only the overshoot at the close is
@@ -31,6 +31,7 @@ import pandas as pd
 
 sys.path.insert(0, "explore")
 from r05_siblings import boot_share, share  # noqa: E402
+from r02_persistence import FOLLOW_UP, K_CROWD, MONEY_X, TG_LABELS  # noqa: E402
 
 SIGNALS = ("crowd", "money", "co-jump", "follow-up")
 REACTIONS = ["reversed it fully", "gave back over half", "kept over half", "went further"]
@@ -47,9 +48,9 @@ def load():
     e["neg_risk"] = e.market.map(info.neg_risk).fillna(0).astype(bool)
     same = e.dropna(subset=["event"]).groupby(["event", "t_close"]).market.transform("size")
     e["co_jump"] = (same.reindex(e.index).fillna(1) > 1)
-    e["crowd"] = e.takers >= 4
-    e["money"] = e.usd >= 1000
-    e["follow-up"] = e.entry_delay <= 300
+    e["crowd"] = e.takers >= K_CROWD
+    e["money"] = e.usd >= MONEY_X
+    e["follow-up"] = e.entry_delay <= FOLLOW_UP
     e["co-jump"] = e.co_jump
     e["score"] = e[list(SIGNALS)].sum(axis=1)
     e["kept_next"] = (e.entry_vwap - e.y_pre) / (e.p_close - e.y_pre)
@@ -84,12 +85,12 @@ def main():
     print("\n[number of signs]\n" + sc.round(3).to_string())
     sc.to_csv("local_data/r10_score.csv")
     print("\n[number of signs, by trader group]")
-    print(pd.DataFrame({g: table(e[e.tg == g], "score").close for g in ("1", "2-3", "4+")}).round(3).to_string())
+    print(pd.DataFrame({g: table(e[e.tg == g], "score").close for g in TG_LABELS}).round(3).to_string())
     print("\n[co-jump, neg-risk vs not]")
     print(table(e, ["neg_risk", "co_jump"]).round(3).to_string())
 
     t = e[e.kept_next.notna()]
-    cls = np.select([(t.takers >= 4) & (t.kept_next >= .5), (t.takers == 1) & (t.kept_next < .5)],
+    cls = np.select([(t.takers >= K_CROWD) & (t.kept_next >= .5), (t.takers == 1) & (t.kept_next < .5)],
                     ["news-like", "noise-like"], "other")
     c = table(t.assign(cls=cls), "cls")
     print(f"\n[after the fact, {len(t):,} jumps with next trades]\n" + c.round(3).to_string())

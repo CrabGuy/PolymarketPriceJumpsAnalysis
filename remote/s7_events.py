@@ -45,8 +45,8 @@ import s2_events as s2
 TAGS = "data/market_tags.csv"
 SPORTS = "esports|counter-strike|dota|league-of-legends|valorant|sports|nba|nfl|soccer|tennis|mlb|nhl|ufc|f1|golf|cricket|ncaa"
 BAR = s2.BAR
-ENTRY_N = 8                    # round 11 (was 5)
-ENTRY_MAX = 3600
+ENTRY_N = 7                    # as s3_events (elbow)
+ENTRY_MAX = 2700
 SAMPLE = 0.05
 LIVE_H = 3
 OUT = "tmp/events7"

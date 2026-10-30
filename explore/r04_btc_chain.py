@@ -16,14 +16,18 @@ the trivial shape. So the analysis looks at
 Usage: python explore/r04_btc_chain.py
 """
 import glob
+import sys
 import time
 
 import numpy as np
 import pandas as pd
 import stumpy
 
-M = 30
-MIN_TRADES = 10
+sys.path.insert(0, "explore")
+from r02_persistence import CLIP, CX_MIN_TRADES, CX_POINTS  # noqa: E402
+
+M = CX_POINTS
+MIN_TRADES = CX_MIN_TRADES
 
 
 def build():
@@ -41,7 +45,7 @@ def build():
     p = p.set_index("end_date").reindex(grid)
     P = p.filter(regex=r"^p\d+$").values.astype("float64")
     P[(p.n_window.fillna(0) < MIN_TRADES).values] = np.nan
-    L = np.log(np.clip(P, 0.01, 0.99) / (1 - np.clip(P, 0.01, 0.99)))
+    L = np.log(np.clip(P, CLIP, 1 - CLIP) / (1 - np.clip(P, CLIP, 1 - CLIP)))
     T = L.ravel()
     t_index = np.repeat(grid.values, M) + np.tile(np.arange(M) * 30, len(grid)).astype("timedelta64[s]") - np.timedelta64(15, "m")
     return p, T, t_index

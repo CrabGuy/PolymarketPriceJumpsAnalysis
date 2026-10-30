@@ -3,7 +3,7 @@ Round 2: do big price moves overshoot, and does it depend on how they were made?
 
 Input: the moves table from remote/s2_events.py (local_data/r02_events/e*.parquet), the
 markets file (final outcomes) and tags. Uses the VWAP price basis (robust to a sweep's
-extreme last fill) and price jumps: moves of at least MIN_PTS (13 probability points).
+extreme last fill) and price jumps: moves of at least MIN_PTS (16 probability points).
 
 Metric (no horizon, no ratios of small numbers): the final outcome (1 if YES won, else 0,
 markets with a clear 0/1 resolution only) is compared with the price right after the move.
@@ -27,10 +27,50 @@ import sys
 import numpy as np
 import pandas as pd
 
-MIN_PTS = 0.13       # a price jump: at least 13 points (round 11, elbow; was 0.10, before that 0.4 in log-odds)
-BAR = 1800           # the main slot length in seconds (round 11, elbow; was 900), as remote/s2_events.BAR
-LIFE_CUT = 0.05      # share of each market's life left out at each end (round 11, elbow; was 0.10), as s2_events
-N_NEXT = 8           # trades averaged for the next-trades price (round 11, elbow; was 5), as s3_events.ENTRY_N
+# Every value below was set by the elbow method (explore/r12_joint.py, explore/r12_params.py); the
+# server stages use the same values (remote/s2_events.py, s3_events.py).
+MIN_PTS = 0.16       # a price jump: at least 16 points
+BAR = 1800           # slot length in seconds (30 minutes)
+LIFE_CUT_START = 0.075  # share of each market's life left out at the start
+LIFE_CUT_END = 0.045    # share left out at the end
+EDGE = 0.03          # settled = the price left [EDGE, 1 - EDGE] for good
+CLIP = 0.02          # prices are clipped to [CLIP, 1 - CLIP] before jumps and log-odds are computed
+N_NEXT = 7           # next trades: how many
+T_NEXT = 2700        # next trades: within this many seconds
+OUTCOME_Q = 0.995    # a market resolved YES if its first outcome price is above this, NO if below 1 - it
+# Statistics and groups (explore/r12_params.py)
+SAMPLE_SHARE = 0.01  # share of slots drawn at random for the usual-error baseline
+N_RESAMPLES = 150    # market resamples for every uncertainty range
+N_BINS = 20          # price bins of the usual-error baseline
+K_CROWD = 5          # a "crowd" jump has at least this many traders
+TG_EDGES = [0, 1, K_CROWD - 1, np.inf]                       # trader groups: 1 / a few / a crowd
+TG_LABELS = ["1", f"2-{K_CROWD - 1}", f"{K_CROWD}+"]
+FEW, CROWD = TG_LABELS[1], TG_LABELS[2]
+MONEY_X = 200        # "big money": at least this many dollars traded in the jump's slot
+WALLET_MIN = 8       # wallets need this many single-trader jumps for the persistence check (F2)
+CONTROL_BINS = 3     # quantile bins of each continuous control in the F2 regression
+OFFSET_LO, OFFSET_HI = 0.55, 1.0   # F4: below LO = not offset, LO-HI = partly, from HI = offset
+BET_BAND = 0.0       # F5: bets only on jumps that start inside [BET_BAND, 1 - BET_BAND] (flat curve: none)
+TRIM = 0.025         # F5: share of returns trimmed at each end
+MIN_SLOTS = 50       # F6: markets need this many slots with trades
+VR_LAG = 6           # F6: variance ratio lag, in slots
+SPREAD_WIN = 120     # F6: buy-sell gap window, seconds
+TAG_MIN = 200        # F6: tags need this many markets
+TAG_MIN_JUMPS = 200  # F1: tags need this many markets with price jumps
+FOLLOW_UP = 1200     # F10: a new trade within this many seconds of the slot's close
+# Crypto up/down (F8), from explore/r12_joint.py (mode cx) and r12_params.py
+CX_MIN_PTS = 0.18
+CX_MOVED = 0.75      # a related market "moved" if its log-odds changed by at least this
+CX_POINTS = 30       # points per market in the crypto chains (F9)
+CX_MIN_TRADES = 50   # crypto markets need this many trades in their window (F9)
+# Pattern search (F9), from explore/r12_f9.py
+F9_STEP = 10         # minutes between the points of a path
+F9_BEFORE = 30       # minutes of path before the slot's close
+F9_AFTER = 120       # minutes of path after it
+F9_MIN_CHANGES = 3   # a path needs price changes in at least this many post-jump steps
+F9_HOURS_LEFT = 2    # a jump needs at least this many hours of the market's window left
+F9_RADIUS_PCT = 15   # match radius = this percentile of the surrogates' matrix profile
+F9_SAMPLE = 10**9    # no sampling: every path that passes the filters is used
 BASIS = "vwap"
 CATS = [  # first match wins
     ("esports", "esports|counter-strike|dota|league-of-legends|valorant"),
@@ -58,11 +98,20 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
+def random_slots():
+    """The random slots of the usual-error baseline: a SAMPLE_SHARE draw of all used slots. The
+    server keeps a 5% draw (remote/s3_events.SAMPLE); a fixed sub-draw of it gives SAMPLE_SHARE."""
+    r = pd.concat([pd.read_parquet(f) for f in sorted(glob.glob(f"local_data/r03_events/{BAR}/r*.parquet"))],
+                  ignore_index=True)
+    keep = np.random.default_rng(0).random(len(r)) < SAMPLE_SHARE / 0.05
+    return r[keep].reset_index(drop=True)
+
+
 def outcomes():
     mk = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "outcome_prices"])
     first = mk.outcome_prices.str.strip("[]").str.split(",").str[0].str.strip(" '\"")
     y = pd.to_numeric(first, errors="coerce")
-    out = pd.Series(np.where(y > 0.99, 1.0, np.where(y < 0.01, 0.0, np.nan)),
+    out = pd.Series(np.where(y > OUTCOME_Q, 1.0, np.where(y < 1 - OUTCOME_Q, 0.0, np.nan)),
                     index=pd.to_numeric(mk.id, errors="coerce"))
     return out[~out.index.duplicated()]
 
@@ -74,7 +123,7 @@ def load(events_dir="local_data/r02_events"):
     e["cat"] = e.market.map(pd.Series(category(tags.tags).values, index=tags.market_id.astype(int).values)).fillna("other")
     e["year"] = pd.to_datetime(e.t_close, unit="s").dt.year
     e["outcome"] = e.market.map(outcomes())
-    L_pre = np.log(np.clip(e.y_pre, .01, .99) / (1 - np.clip(e.y_pre, .01, .99)))
+    L_pre = np.log(np.clip(e.y_pre, CLIP, 1 - CLIP) / (1 - np.clip(e.y_pre, CLIP, 1 - CLIP)))
     e["p_close"] = sigmoid(L_pre + e.move)
     e = e[e.outcome.notna()]
 
@@ -86,7 +135,7 @@ def load(events_dir="local_data/r02_events"):
     return e, base
 
 
-def share(df, n_boot=200, seed=0):
+def share(df, n_boot=N_RESAMPLES, seed=0):
     """Overshoot share = sum(overshoot)/sum(|dp|), 90% CI by resampling markets."""
     g = df.groupby("market")[["overshoot", "absdp"]].sum()
     o, d = g.overshoot.values, g.absdp.values
@@ -99,7 +148,7 @@ def share(df, n_boot=200, seed=0):
 def groupings(e):
     return {
         "direction": pd.Series(np.where(e.move > 0, "up", "down"), index=e.index),
-        "distinct takers": pd.cut(e.takers, [0, 1, 3, np.inf], labels=["1", "2-3", "4+"]),
+        "distinct takers": pd.cut(e.takers, TG_EDGES, labels=TG_LABELS),
         "sweep share of money": pd.cut(e.sweep_share.fillna(0), [-.01, 0, .5, 1.01], labels=["0", "<50%", ">=50%"]),
         "money in the move (USD)": pd.cut(e.usd, [0, 50, 500, 5000, np.inf], labels=["<50", "50-500", "500-5k", ">5k"]),
         "net flow vs move": pd.cut(e.flow_agree, [-1.01, 0, 0.99, 1.01], labels=["against", "mixed", "all with"]),

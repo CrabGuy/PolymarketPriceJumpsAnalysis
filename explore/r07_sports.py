@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import category  # noqa: E402
+from r02_persistence import TG_LABELS, category  # noqa: E402
 from r05_siblings import boot_share, share  # noqa: E402
 
 OUT = "local_data/r07/"
@@ -30,7 +30,7 @@ SPORT = [("soccer", r"soccer|epl|premier-league|la-liga|serie-a|bundesliga|ligue
          ("cricket", r"cricket|ipl"), ("combat", r"ufc|mma|boxing"),
          ("esports: counter-strike", r"counter-strike|cs2|csgo"), ("esports: league of legends", r"league-of-legends|lol"),
          ("esports: dota", r"dota"), ("esports: valorant", r"valorant")]
-TGS = ("1", "2-3", "4+")
+TGS = tuple(TG_LABELS)
 
 
 def load():
