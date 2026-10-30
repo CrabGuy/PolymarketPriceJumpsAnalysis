@@ -2,7 +2,7 @@
 Round 5, part 4: momentum in crypto up/down markets, explored fully.
 
 Input (remote/s1x_bucket.py -> s4_paths.py cx / cxmoves):
-  local_data/r05/events_cx/e*.parquet   1-min price jumps (VWAP basis, >= 10 points, cut
+  local_data/r05/events_cx/e*.parquet   1-min price jumps (VWAP basis, >= 13 points, cut
                                         only at the settle moment: the 10% window of the
                                         event markets changes these results, see
                                         explore/r09_crypto.py; next trades within 5 min) in every

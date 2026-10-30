@@ -3,7 +3,7 @@ Round 2: do big price moves overshoot, and does it depend on how they were made?
 
 Input: the moves table from remote/s2_events.py (local_data/r02_events/e*.parquet), the
 markets file (final outcomes) and tags. Uses the VWAP price basis (robust to a sweep's
-extreme last fill) and price jumps: moves of at least MIN_PTS (10 probability points).
+extreme last fill) and price jumps: moves of at least MIN_PTS (13 probability points).
 
 Metric (no horizon, no ratios of small numbers): the final outcome (1 if YES won, else 0,
 markets with a clear 0/1 resolution only) is compared with the price right after the move.
@@ -27,7 +27,10 @@ import sys
 import numpy as np
 import pandas as pd
 
-MIN_PTS = 0.10       # a price jump: at least 10 points (round 9; was 0.4 in log-odds)
+MIN_PTS = 0.13       # a price jump: at least 13 points (round 11, elbow; was 0.10, before that 0.4 in log-odds)
+BAR = 1800           # the main slot length in seconds (round 11, elbow; was 900), as remote/s2_events.BAR
+LIFE_CUT = 0.05      # share of each market's life left out at each end (round 11, elbow; was 0.10), as s2_events
+N_NEXT = 8           # trades averaged for the next-trades price (round 11, elbow; was 5), as s3_events.ENTRY_N
 BASIS = "vwap"
 CATS = [  # first match wins
     ("esports", "esports|counter-strike|dota|league-of-legends|valorant"),

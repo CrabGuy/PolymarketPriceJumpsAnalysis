@@ -2,7 +2,7 @@
 Round 4, part 2A: recurring reaction shapes (motifs) and anomalous reactions (discords)
 after big moves, across all non-recurring markets.
 
-Each price jump (15-min bars, VWAP, >= 10 points) gives a 55-point window of log-odds:
+Each price jump (30-min bars, VWAP, >= 13 points) gives a 55-point window of log-odds:
 5-min steps from 35 min before the move bar closes to about 4 h after
 (remote/s4_paths.py, mode "moves"). On a random sample of windows, the matrix profile of
 the set is computed: each window's z-normalised Euclidean distance (the stumpy distance)
@@ -85,7 +85,7 @@ def surrogate(L, rng):
 
 def load(n_sample):
     p = pd.concat([pd.read_parquet(f) for f in glob.glob(f"{PATHS}/moves_*.parquet")], ignore_index=True)
-    t = pd.read_parquet("local_data/r03_big_moves_900.parquet")
+    t = pd.read_parquet("local_data/r03_big_moves_main.parquet")
     # the 4 h path must stay inside the market's window: otherwise short markets (games) run
     # into their resolution after the jump, and those paths all match each other trivially.
     # ret_6h is set only when the window has 6 h left after the jump (remote/s2_events.py).

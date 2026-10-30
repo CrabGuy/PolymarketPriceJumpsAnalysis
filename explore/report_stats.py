@@ -8,8 +8,8 @@ shares on tables the rounds already produced).
   3. How often the next trades undo most of a move, by number of takers.
   4. Up/down crypto markets: how many big 1-minute moves and markets.
 
-Inputs: local_data/r02_events (all moves, both price bases), local_data/r03_big_moves_900,
-local_data/r03_tradable_900, local_data/r05/r05_ud_moves.parquet.
+Inputs: local_data/r02_events (all moves, both price bases), local_data/r03_big_moves_main,
+local_data/r03_tradable_main, local_data/r05/r05_ud_moves.parquet.
 Output: printed tables, and local_data/report_stats.csv (category table).
 
 Usage: python explore/report_stats.py
@@ -60,7 +60,7 @@ def main():
         print(f"  markets with {lo}-{hi} trades: {len(s):,}, with a spike {(s.big > 0).mean():.1%}")
 
     # 2. who makes the price jumps (clean-outcome sample used for every finding)
-    b = pd.read_parquet("local_data/r03_big_moves_900.parquet")
+    b = pd.read_parquet("local_data/r03_big_moves_main.parquet")
     print(f"\nanalysis sample: {len(b):,} price jumps in {b.market.nunique():,} markets")
     print("share by takers:", b.tg.value_counts(normalize=True).round(3).to_dict())
     print("median $ in the move's bar by takers:", b.groupby("tg", observed=True).usd.median().round(0).to_dict())
@@ -71,7 +71,7 @@ def main():
     print("single-trader moves made of one trade:", f"{((b.takers == 1) & (b.n == 1)).sum() / (b.takers == 1).sum():.1%}")
 
     # 3. how often the next trades undo most of the move
-    t = pd.read_parquet("local_data/r03_tradable_900.parquet")
+    t = pd.read_parquet("local_data/r03_tradable_main.parquet")
     t = t[t.entry_vwap.notna()].copy()
     t["kept"] = (logit(t.entry_vwap) - t.L_pre) / t.move
     t["undone_half"] = t.kept < 0.5
@@ -80,7 +80,7 @@ def main():
                                            more_than_half_undone=("undone_half", "mean"),
                                            fully_undone=("undone_all", "mean"),
                                            delay_median_s=("entry_delay", "median"))
-    print("\nat the next trades (first 5 trades after the bar, within 1 h):")
+    print("\nat the next trades (first 8 trades after the slot, within 1 h):")
     print(g.round(3).to_string())
 
     # 4. up/down

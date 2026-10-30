@@ -1,13 +1,13 @@
 """
 Round 10: does a price jump carry information (news) or is it one trader's noise?
 
-Input: the main jumps (local_data/r03_big_moves_900.parquet, r03_tradable_900.parquet from
+Input: the main jumps (local_data/r03_big_moves_main.parquet, r03_tradable_main.parquet from
 explore/r03_robustness.py) and the market list (event_id, neg_risk).
 
 Signs of information that are known at the time of the jump (or within minutes):
-  crowd      4+ different traders took liquidity in the jump's 15 minutes
-  money      $1,000 or more traded in those 15 minutes
-  co-jump    another market of the same event also jumped in the same 15 minutes
+  crowd      4+ different traders took liquidity in the jump's 30 minutes
+  money      $1,000 or more traded in those 30 minutes
+  co-jump    another market of the same event also jumped in the same 30 minutes
   follow-up  someone traded again within 5 minutes after the slot
 Score = how many of the four a jump has (0-4). Per score: share of jumps, overshoot at the
 close and at the next trades (category baseline, ratio of sums, market bootstrap), and the
@@ -37,8 +37,8 @@ REACTIONS = ["reversed it fully", "gave back over half", "kept over half", "went
 
 
 def load():
-    e = pd.read_parquet("local_data/r03_big_moves_900.parquet")
-    t = pd.read_parquet("local_data/r03_tradable_900.parquet", columns=["market", "t_close", "oe"])
+    e = pd.read_parquet("local_data/r03_big_moves_main.parquet")
+    t = pd.read_parquet("local_data/r03_tradable_main.parquet", columns=["market", "t_close", "oe"])
     e = e.merge(t, on=["market", "t_close"], how="left")
     info = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "event_id", "neg_risk"])
     info = info[pd.to_numeric(info.id, errors="coerce").notna()]

@@ -1,12 +1,12 @@
 """
 Stage 2: per bucket, find every sizeable price move and measure whether it persists.
 
-For each market: 15-min bars from the bucket rows, then only the middle of the market's life
+For each market: 30-min bars (BAR) from the bucket rows, then only the middle of the market's life
 is kept (window()): its life runs from the first bar to the settle moment (the last bar
 inside [0.05, 0.95] when the market ends outside the band, else its last bar), and the first
 and last LIFE_CUT of it are left out (round 9; was: the last 6 h before the settle moment).
 A move is a bar whose price (log-odds) differs from the previous active bar's by at least
-MIN_MOVE; the analysis keeps moves of 10 points or more (price jumps).
+MIN_MOVE; the analysis keeps moves of 13 points or more (price jumps).
 (Round 8: the minimum of 100 trades per market, the end_date cut, the limit of 2 h since
 the previous active bar and the [0.05, 0.95] band on the starting price were tested one by
 one and removed: none changed the results by more than 2 points; explore/r08_filters.py.)
@@ -34,13 +34,13 @@ import pandas as pd
 MARKETS = "data/markets_final.parquet"
 SRC = "tmp/buckets"
 OUT = "tmp/events"
-BAR = 900
+BAR = 1800                     # 30-minute slots (round 11, elbow; was 900)
 MIN_TRADES = 1                 # no minimum (was 100)
 MIN_MOVE = 0.15
 MAX_GAP_BARS = 10**9           # no limit on the time since the previous active bar (was 8 = 2 h)
 EDGE = 0.05                    # "settled" = the price left [EDGE, 1 - EDGE] for good
 PRE_EDGE = 0.0                 # no band on the price before the move (was EDGE)
-LIFE_CUT = 0.10                # share of the life left out at each end (was: the last 6 h)
+LIFE_CUT = 0.05                # share of the life left out at each end (round 11, elbow; was 0.10)
 HORIZONS = {"1h": 3600, "6h": 6 * 3600, "24h": 24 * 3600}
 
 

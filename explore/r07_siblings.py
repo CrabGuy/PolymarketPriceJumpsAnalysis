@@ -9,7 +9,7 @@ conversions are not trades; but scripts can watch one candidate and trade the ot
 seconds, which would make an "offset" mechanical instead of confirmation by other traders.
 User trades in other candidates (even right after a big move) are information and stay.
 
-Inputs (remote/s8_wallets.py, copied to local_data/r07/w8b/):
+Inputs (remote/s8_wallets.py, copied to local_data/r11/w8/):
   wallets.parquet  per taker wallet: trades, trades within 2 s of a trade in another market of
                    the same event ("fast"), own multi-market legs; also for neg-risk only.
   sib/s*.parquet   per (big move, sibling): p_before, p_close (all trades), and p_close
@@ -37,7 +37,7 @@ import pandas as pd
 sys.path.insert(0, "explore")
 from r05_siblings import GROUPS, boot_share, share  # noqa: E402
 
-SRC = "local_data/r07/w8b/"
+SRC = "local_data/r11/w8/"           # round 11 rerun (was local_data/r07/w8b/)
 OUT = "local_data/r07/"
 VERSIONS = {"all trades": "p_close", "without scripts' fast trades": "p_close_noauto10",
             "users only": "p_close_users10", "without scripts (cut 0.05)": "p_close_noauto05",

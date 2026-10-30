@@ -2,15 +2,15 @@
 Round 6, parts A and B: does fading big moves survive real trading prices, and does it pay
 more on moves the rest of the event did not confirm?
 
-Input: local_data/r04_tradable.parquet (big 15-min moves with the next-trades price, question
+Input: local_data/r04_tradable.parquet (big 30-min moves with the next-trades price, question
 type and overshoot), local_data/r06/micro/x*.parquet (stage 6: side-specific prices after
 each move) and local_data/r05/r05_sib_moves.parquet (round-5 sibling groups).
 
 Fade = bet against the move right after the bar closes and hold to resolution. Entry prices:
-  mid     average of the next 5 trades, both sides (round 5)
-  taker   average of the next 5 trades on the fader's side (after an up move: trades whose
+  mid     average of the next 8 trades, both sides (round 5)
+  taker   average of the next 8 trades on the fader's side (after an up move: trades whose
           taker sold YES): what a fader crossing the spread got. Pessimistic.
-  maker   average of the next 5 trades on the other side (after an up move: takers buying
+  maker   average of the next 8 trades on the other side (after an up move: takers buying
           YES), i.e. what a resting order against the move would have been filled at.
           Optimistic: it assumes the order was first in the queue.
 Return per $ staked = sgn * (entry - outcome) / stake, stake = 1 - entry (up moves, buying
@@ -19,7 +19,7 @@ question type (the calibration baseline), leaving the part due to the move itsel
 
   A  returns by entry price, number of takers, year, delay and money; the spread paid; and
      how much money traded on the fader's side within 1 h (capacity).
-  B  the same, split by what the event's other outcomes did in the move's 15 minutes.
+  B  the same, split by what the event's other outcomes did in the move's 30 minutes.
 
 Usage: python explore/r06_fade.py
 """
@@ -39,7 +39,7 @@ N_BOOT = 300
 
 def calib():
     info = market_info()
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/900/r*.parquet")], ignore_index=True)
+    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()].join(info, on="market")
     return baseline(rnd, "qtype")

@@ -13,8 +13,8 @@ Calibration baselines are per question type (random moments). Timing is also exp
 relative to the market's scheduled lifetime (created_at to end_date), since 10 minutes is
 a large share of a short market.
 
-Input: local_data/r03_big_moves_900.parquet, r03_tradable_900.parquet and the random
-sample in local_data/r03_events/900/r*.parquet.
+Input: local_data/r03_big_moves_main.parquet, r03_tradable_main.parquet and the random
+sample in local_data/r03_events/1800/r*.parquet.
 Usage: python explore/r04_types.py
 """
 import glob
@@ -70,15 +70,15 @@ def share(x, col):
 
 def main():
     info = market_info()
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/900/r*.parquet")], ignore_index=True)
+    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()].join(info, on="market")
     cb = baseline(rnd, "qtype")
     print("calibration (outcome - price) at random moments by question type:",
           rnd.groupby("qtype").apply(lambda x: round((x.outcome - x.vwap).mean(), 3)).to_dict())
 
-    t = pd.read_parquet("local_data/r03_tradable_900.parquet").join(info, on="market")
-    big = pd.read_parquet("local_data/r03_big_moves_900.parquet").join(info, on="market")
+    t = pd.read_parquet("local_data/r03_tradable_main.parquet").join(info, on="market")
+    big = pd.read_parquet("local_data/r03_big_moves_main.parquet").join(info, on="market")
     for d in (t, big):
         d["oq"] = osh(d, d.p_close, cb, "qtype")
         d["life"] = pd.cut(d.life_days, LIFE_BINS, labels=LIFE_LABELS)

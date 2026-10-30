@@ -7,7 +7,7 @@ configurable bar size. Extra columns per move:
                (at most 1 h later): the next price an outsider could have traded at
   entry_n, entry_delay   how many trades that used, and seconds to the first one
   taker1       hash of the only taker when the move bar had exactly one, else 0
-Also, for bar size 900 only: a 5% random sample of all active bars (market, t_close, vwap)
+Also, for the main bar size (s2.BAR) only: a 5% random sample of all active bars (market, t_close, vwap)
 for a calibration baseline at random moments.
 
 Writes tmp/events3/<bar>/e<k>.parquet and tmp/events3/<bar>/r<k>.parquet.
@@ -24,7 +24,7 @@ import pandas as pd
 
 import s2_events as s2
 
-ENTRY_N = 5
+ENTRY_N = 8                    # round 11, elbow (was 5)
 ENTRY_MAX = 3600
 SAMPLE = 0.05
 OUT_ROOT = "tmp/events3"
@@ -83,7 +83,7 @@ def process(k, end_ts, bar_s):
             e[c] = e[c].astype("float32")
 
     rnd = None
-    if bar_s == 900:
+    if bar_s == s2.BAR:
         rng = np.random.default_rng(k)
         pick = rng.random(len(bars)) < SAMPLE
         rnd = bars.loc[pick, ["market", "t_close", "vwap"]].copy()

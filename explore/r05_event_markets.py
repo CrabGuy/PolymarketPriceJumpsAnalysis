@@ -1,9 +1,9 @@
 """
 Round 5, part 1: the overshoot pattern in event markets, explored fully.
 
-Input: local_data/r04_tradable.parquet (big 15-min moves, VWAP basis, |move| >= 0.4, with
+Input: local_data/r04_tradable.parquet (big 30-min moves, VWAP basis, |move| >= 0.4, with
 the next-trades price, question type and lifetime; built by r03_robustness.py and
-r04_types.py) and local_data/r03_big_moves_900.parquet. Overshoot uses the question-type
+r04_types.py) and local_data/r03_big_moves_main.parquet. Overshoot uses the question-type
 calibration baseline (column oq at the close, oqe at the next trades).
 
   A  all factors at once: weighted least squares of each move's overshoot share (weight =
@@ -195,7 +195,7 @@ def main():
     t = pd.read_parquet("local_data/r04_tradable.parquet")
     t = t[t.oq.notna() & t.oqe.notna()].copy()
     info = market_info()
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/900/r*.parquet")], ignore_index=True)
+    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
     rnd["outcome"] = rnd.market.map(outcomes())
     rnd = rnd[rnd.outcome.notna()].join(info, on="market")
     cb = baseline(rnd, "qtype")

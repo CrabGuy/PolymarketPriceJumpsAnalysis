@@ -1,8 +1,8 @@
 """
 Stage 6: market microstructure per market, and side-specific execution prices per big move.
 
-Input: tmp/buckets (event-market trades, stage 1) and tmp/events3/900/e<k>.parquet (the
-15-min moves of stage 3). Per market, only trades inside the stage-2 window (the middle of
+Input: tmp/buckets (event-market trades, stage 1) and tmp/events3/<BAR>/e<k>.parquet (the
+main-slot moves of stage 3). Per market, only trades inside the stage-2 window (the middle of
 the market's life) are used.
 
 Per market -> tmp/micro/k<k>.parquet:
@@ -43,9 +43,9 @@ import pandas as pd
 import s2_events as s2
 
 OUT = "tmp/micro"
-LAMBDA_GAP_BARS = 8          # Kyle's lambda: consecutive active bars at most 2 h apart
-BAR = 900
-ENTRY_N = 5
+BAR = s2.BAR
+LAMBDA_GAP_BARS = 7200 // BAR  # Kyle's lambda: consecutive active bars at most 2 h apart
+ENTRY_N = 8                    # round 11 (was 5)
 ENTRY_MAX = 3600
 MIN_BARS_KYLE = 20
 MIN_BARS_VR = 40
@@ -202,7 +202,7 @@ def process(k, end_ts):
     bars["t_close"] = (bars.bar + 1) * BAR
     bars = s2.window(bars)
     ms = market_stats(d, bars)
-    ef = f"tmp/events3/900/e{k:02d}.parquet"
+    ef = f"tmp/events3/{BAR}/e{k:02d}.parquet"
     xp = None
     if os.path.exists(ef):
         e = pd.read_parquet(ef, columns=["market", "t_close", "move"])

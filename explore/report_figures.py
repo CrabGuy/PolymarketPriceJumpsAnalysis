@@ -33,7 +33,7 @@ import pandas as pd
 sys.path.insert(0, "explore")
 from report_style import (BASE, MUTED, SUBTLE, TEXT, HL_MED, LOVE, GOLD, ROSE, PINE, FOAM, IRIS,  # noqa: E402
                           TG, TG_LABEL, UP, DOWN)
-from r02_persistence import share  # noqa: E402
+from r02_persistence import BAR, LIFE_CUT, share  # noqa: E402
 
 OUT = "report/plots/"
 LD = "local_data/"
@@ -59,7 +59,7 @@ def example_data():
     s = pd.read_parquet(LD + f"r07/example_{EXAMPLE}.parquet").rename(columns={"usd": "usd_amount"})
     s["yes"] = s.yes * 100
     s["t"] = pd.to_datetime(s.ts, unit="s")
-    b = pd.read_parquet(LD + "r03_big_moves_900.parquet", filters=[("market", "==", EXAMPLE)])
+    b = pd.read_parquet(LD + "r03_big_moves_main.parquet", filters=[("market", "==", EXAMPLE)])
     b["t"] = pd.to_datetime(b.t_close, unit="s")
     return s, b
 
@@ -71,12 +71,12 @@ def date_axis(ax):
 
 
 def example_bars(s):
-    # the 15-minute slots the price jumps are found on (as remote/s2_events.py): dollar-weighted
+    # the 30-minute slots the price jumps are found on (as remote/s2_events.py): dollar-weighted
     # average price of the slot's trades, stamped at the slot's end
-    s = s.assign(bar=s.ts // 900, pv=s.yes * s.usd_amount)
+    s = s.assign(bar=s.ts // BAR, pv=s.yes * s.usd_amount)
     g = s.groupby("bar").agg(pv=("pv", "sum"), usd=("usd_amount", "sum"), last=("yes", "last"))
     g["vwap"] = (g.pv / g.usd.where(g.usd > 0)).fillna(g["last"])
-    g["t"] = pd.to_datetime((g.index + 1) * 900, unit="s")
+    g["t"] = pd.to_datetime((g.index + 1) * BAR, unit="s")
     return g.reset_index(drop=True)
 
 
@@ -86,27 +86,27 @@ NEWS = [("2025-02-13 17:00", "13 Feb: Tim Cook teases\n\"the newest member\nof t
 
 
 def ex1_example():
-    """The example market: the average price of every 15-minute slot with trades, with its
+    """The example market: the average price of every 30-minute slot with trades, with its
     price jumps (from one slot to the next) in the accent colour and the news dates."""
     s, b = example_data()
     bars = example_bars(s)
     fig, ax = plt.subplots(figsize=(9.5, 4.6))
     ax.plot(bars.t, bars.vwap, color=HL_MED, lw=0.8, zorder=1)
     ax.scatter(bars.t, bars.vwap, s=14, color=IRIS, lw=0, zorder=2,
-               label="15-minute average price (one dot per 15 minutes with trades)")
+               label="30-minute average price (one dot per 30 minutes with trades)")
     bars["t0"], bars["v0"] = bars.t.shift(), bars.vwap.shift()
     for r in b.merge(bars[["t", "t0", "v0"]], on="t").itertuples():
         ax.plot([r.t0, r.t], [r.v0, r.p_close * 100], color=LOVE, lw=2.4, zorder=3)
         ax.scatter([r.t], [r.p_close * 100], s=30, color=LOVE, lw=0, zorder=4)
     ax.plot([], [], color=LOVE, lw=2.4, marker="o", ms=5, label="price jumps")
-    # the window kept (as remote/s2_events.window): the first and last 10% of the life, which
+    # the window kept (as remote/s2_events.window): the first and last LIFE_CUT of the life, which
     # runs from the first slot to the last slot inside 5-95% (the market ends outside it)
     inside = bars["last"].between(5, 95)
     t0, t1 = bars.t.iloc[0], bars.t[inside].iloc[-1]
-    pad = (t1 - t0) * 0.1
+    pad = (t1 - t0) * LIFE_CUT
     for a, z in ((t0 - pd.Timedelta(hours=3), t0 + pad), (t1 - pad, bars.t.iloc[-1] + pd.Timedelta(hours=3))):
         ax.axvspan(a, z, color=HL_MED, alpha=0.6, lw=0, zorder=0)
-    ax.fill_between([], [], color=HL_MED, alpha=0.6, label="left out: first and last 10% of the market's life")
+    ax.fill_between([], [], color=HL_MED, alpha=0.6, label=f"left out: first and last {LIFE_CUT:.0%} of the market's life")
     for t, txt in NEWS:
         t = pd.Timestamp(t)
         ax.axvline(t, color=SUBTLE, lw=0.8, ls=":", zorder=0)
@@ -124,7 +124,8 @@ def ex1_example():
 
 def ex2_overshoot():
     s, b = example_data()
-    r = b[b.t == pd.Timestamp("2025-02-15 11:15")].iloc[0]      # Saturday morning: the lone sweep
+    sat = b[(b.t >= "2025-02-15 07:00") & (b.t <= "2025-02-15 14:00") & (b.sgn > 0)]
+    r = sat.iloc[0]                                               # Saturday morning: the lone sweep
     t0, t1 = pd.Timestamp("2025-02-15 06:00"), pd.Timestamp("2025-02-16 12:00")
     w = s[(s.t >= t0) & (s.t <= t1)]
     sweep = w[w.t == pd.Timestamp("2025-02-15 07:51:36")]
@@ -140,7 +141,7 @@ def ex2_overshoot():
                 xy=(sweep.t.iloc[0], sweep.yes.max()), xytext=(t0 + pd.Timedelta(hours=1), 88),
                 fontsize=9, color=LOVE, arrowprops=dict(arrowstyle="->", color=LOVE, lw=0.8))
     ax.text(pd.Timestamp("2025-02-15 11:30"), post + 5,
-            f"price jump: {pre:.0f}% → {post:.0f}%\n(15-minute averages; no news found)", fontsize=9, color=LOVE)
+            f"price jump: {pre:.0f}% → {post:.0f}%\n(30-minute averages; no news found)", fontsize=9, color=LOVE)
     ax.text(pd.Timestamp("2025-02-15 19:30"), eve + 6,
             f"evening: other traders sell it back to {eve:.0f}%\n(Monday morning: {mon:.0f}%)", fontsize=9, color=TEXT)
     ax.axhline(99.4, color=PINE, lw=2.5)
@@ -181,10 +182,10 @@ def bg_spikes():
 
 
 def bg_pipeline():
-    mk = pd.read_parquet(LD + "r03_big_moves_900.parquet", columns=["market"]).market
+    mk = pd.read_parquet(LD + "r03_big_moves_main.parquet", columns=["market"]).market
     steps = [("766M trades\n32 GB\n(server)", MUTED),
              ("regroup by market\n32 buckets,\none pass, ~30 min", MUTED),
-             ("15-min bars\nper market\n(price, $, traders)", IRIS),
+             ("30-min slots\nper market\n(price, $, traders)", IRIS),
              (f"price jumps\n{len(mk) / 1e6:.2f}M\nin {mk.nunique() / 1e3:.0f}k markets", IRIS),
              ("compare with the\nfinal outcome\n= overshoot", LOVE),
              ("small tables to the PC:\nstatistics, plots,\nmatrix profiles", PINE)]
@@ -207,13 +208,13 @@ def bg_pipeline():
 
 def outcomes_random():
     from r02_persistence import outcomes
-    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob(LD + "r03_events/900/r*.parquet")], ignore_index=True)
+    rnd = pd.concat([pd.read_parquet(f) for f in glob.glob(LD + "r03_events/1800/r*.parquet")], ignore_index=True)
     rnd["outcome"] = rnd.market.map(outcomes())
     return rnd[rnd.outcome.notna()]
 
 
 def f1_hero():
-    b = pd.read_parquet(LD + "r03_big_moves_900.parquet")
+    b = pd.read_parquet(LD + "r03_big_moves_main.parquet")
     rnd = outcomes_random()
     bins = np.arange(0.05, 0.96, 0.1)
     mid = (bins[:-1] + bins[1:]) / 2 * 100
@@ -336,7 +337,7 @@ def f2_money():
     fig, ax = plt.subplots(figsize=(7.5, 4.3))
     bars_tg(ax, np.arange(3), v, lo, hi)
     ax.set_xticks(np.arange(3), ["under $50", "$50-500", "over $500"])
-    ax.set_xlabel("money traded in the jump's 15 minutes")
+    ax.set_xlabel("money traded in the jump's 30 minutes")
     ax.set_ylabel("overshoot, % of the jump")
     pct(ax)
     ax.legend(ncol=3, loc="upper left", fontsize=9)
@@ -347,14 +348,13 @@ def f2_money():
 
 def f2_robustness():
     r = pd.read_csv(LD + "r03_robustness.csv")
-    lab = {0.25: "≥ 0.25\n(≈6 points)", 0.4: "≥ 0.4\n(≈10 points)", 0.6: "≥ 0.6\n(≈15 points)"}
     fig, axes = plt.subplots(1, 3, figsize=(11, 4), sharey=True)
-    for ax, bm in zip(axes, (5, 15, 60)):
+    for ax, bm in zip(axes, (5, BAR // 60, 60)):
         s = r[r.bar_min == bm].sort_values("threshold")
         v = {tg: s[f"takers {tg}"].values for tg in TGS}
         bars_tg(ax, np.arange(3), v, labels=(bm == 5))
         ax.set_xticks(np.arange(3), [f"≥ {t * 100:.0f} points" for t in s.threshold], fontsize=9)
-        ax.set_title(f"{bm}-minute bars", fontsize=11)
+        ax.set_title(f"{bm}-minute slots", fontsize=11)
         ax.set_xlabel("minimum jump to count as a price jump", fontsize=9)
         pct(ax)
     axes[0].set_ylabel("overshoot, % of the jump")
@@ -412,10 +412,10 @@ def f2_wallets():
 
 def paths():
     p = pd.concat([pd.read_parquet(f) for f in glob.glob(LD + "r04_paths/moves_*.parquet")], ignore_index=True)
-    b = pd.read_parquet(LD + "r03_big_moves_900.parquet",
+    b = pd.read_parquet(LD + "r03_big_moves_main.parquet",
                         columns=["market", "t_close", "oc", "y_pre", "absdp", "sgn", "tg", "takers", "usd"])
     d = p.merge(b, on=["market", "t_close"])
-    ent = pd.read_parquet(LD + "r03_tradable_900.parquet", columns=["market", "t_close", "entry_delay"])
+    ent = pd.read_parquet(LD + "r03_tradable_main.parquet", columns=["market", "t_close", "entry_delay"])
     d = d.merge(ent, on=["market", "t_close"], how="left")
     P = d.filter(regex=r"^p\d+$").values.astype(float)
     ok = np.isfinite(P).all(1) & d.oc.notna().values
@@ -427,7 +427,7 @@ def f2_average(d, P):
     forward-filled price holds the moved level until the next trade, hiding the snap-back."""
     x = (np.arange(P.shape[1]) - 7) * 5
     fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.axvspan(-15, 0, color=HL_MED, alpha=0.6, lw=0)
+    ax.axvspan(-BAR // 60, 0, color=HL_MED, alpha=0.6, lw=0)
     busy = d.entry_delay.values <= 600
     for tg in TGS:
         s = (d.tg.values == tg) & busy
@@ -442,7 +442,7 @@ def f2_average(d, P):
     ax.set_xlim(x[0], x[-1] + 20)
     ax.set_ylim(-10, 125)
     pct(ax)
-    ax.set_xlabel("minutes from the end of the jump's 15-minute bar")
+    ax.set_xlabel("minutes from the end of the jump's 30-minute slot")
     ax.set_ylabel("share of the jump still in the price")
     ax.set_title("The average price jump (markets that traded again within 10 minutes)")
     ax.legend(loc="lower right", bbox_to_anchor=(0.88, 0.06), fontsize=9)
@@ -451,20 +451,20 @@ def f2_average(d, P):
 
 def f2_two_moves(d, P):
     x = (np.arange(P.shape[1]) - 7) * 5
-    picks = [(518011, 1737305100, "One trader, $2.0k: mostly undone in 10 min",
-              "Will Carlos Alcaraz win the Australian Open?\n19 Jan 2025, 16:45 UTC", TG["1"]),
-             (1947830, 1776186000, "112 traders, $25.6k: the jump held",
-              "BMW Open: Marozsan vs Tsitsipas (price of a\nMarozsan win)  14 Apr 2026, 17:00 UTC", TG["4+"])]
+    picks = [(518038, 1737451800, "One trader, $244: undone within two minutes",
+              "Will Aryna Sabalenka win the Australian Open?\n21 Jan 2025, 09:30 UTC", TG["1"]),
+             (1006468, 1769765400, "88 traders, $27.4k: the jump held",
+              "Will Carlos Alcaraz win the 2026 Australian Open?\n30 Jan 2026, 09:30 UTC", TG["4+"])]
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.2))
     for ax, (m, tc, title, sub, col) in zip(axes, picks):
         i = np.flatnonzero((d.market.values == m) & (d.t_close.values == tc))[0]
-        ax.axvspan(-15, 0, color=HL_MED, alpha=0.6, lw=0)
+        ax.axvspan(-BAR // 60, 0, color=HL_MED, alpha=0.6, lw=0)
         ax.plot(x, P[i] * 100, color=col, lw=2.4, drawstyle="steps-post")
         ax.set_title(title, fontsize=10.5)
         top = P[i].max() < 0.7          # the question goes where the line isn't
         ax.text(0.02, 0.97 if top else 0.03, sub, transform=ax.transAxes, va="top" if top else "bottom",
                 fontsize=8.5, color=SUBTLE)
-        ax.set_xlabel("minutes from the end of the jump's bar")
+        ax.set_xlabel("minutes from the end of the jump's slot")
         ax.set_ylim(0, 100)
         pct(ax)
     axes[0].set_ylabel("price of YES (5-min average)")
@@ -498,7 +498,7 @@ def f3_decay():
 # ---------------------------------------------------------------- F4
 
 def f4_versions():
-    """F4: overshoot by what the other candidates did in the move's 15 minutes (neg-risk events),
+    """F4: overshoot by what the other candidates did in the move's 30 minutes (neg-risk events),
     at the close and at the next trades."""
     r = pd.read_csv(LD + "r07/sib_versions.csv")
     r = r[r.neg_risk == 1]
@@ -508,7 +508,7 @@ def f4_versions():
     for ax, tg in zip(axes, ("1", "4+")):
         x = np.arange(4)
         s = r[(r.version == "all trades") & (r.takers.astype(str) == tg)].set_index("group").reindex(groups)
-        ax.bar(x, s.close * 100, 0.55, color=TG[tg], label="at the end of the 15 minutes")
+        ax.bar(x, s.close * 100, 0.55, color=TG[tg], label="at the end of the 30 minutes")
         ax.errorbar(x, s.close * 100, yerr=[(s.close - s.lo) * 100, (s.hi - s.close) * 100], fmt="none", ecolor=TEXT, lw=1)
         ax.scatter(x, s["next trades"] * 100, marker="D", s=55, color=SUBTLE, zorder=3, label="at the next trades")
         for i, n in enumerate(s.moves):
@@ -546,7 +546,7 @@ def f5_fade():
         ax.set_ylim(-11, 21)
     for i, sp in enumerate(t["spread (cents)"]):
         a1.text(i, 18.5, f"spread {sp:.1f}¢", ha="center", fontsize=8.5, color=SUBTLE)
-    a2.set_xlabel("money traded in the jump's 15 minutes")
+    a2.set_xlabel("money traded in the jump's 30 minutes")
     a1.set_ylabel("return per $1 bet against the jump (cents),\nafter the spread, extremes trimmed")
     fig.suptitle("Betting against price jumps: loses after lone pushes, pays after crowd and big-money jumps",
                  fontweight="bold", color=TEXT, fontsize=11.5)
@@ -600,7 +600,7 @@ def f6_tags():
                         fontsize=8.5, color=TEXT)
     ax.set_xscale("log")
     ax.set_xlabel("median price impact per $1k in the tag (log scale)")
-    ax.set_ylabel("one-trader price jumps per 100 active bars")
+    ax.set_ylabel("one-trader price jumps per 100 slots with trades")
     rho = t[["kyle_lambda", "rate1"]].rank().corr().iloc[0, 1]
     ax.set_title(f"Across {len(t)} tags: easy-to-push markets get lone pushes (rank corr. {rho:+.2f})", fontsize=11)
     save(fig, "f6_tags")
@@ -663,7 +663,7 @@ def sp_groups():
     for ax, cat in zip(axes, ("sports", "esports")):
         s = t[t.cat == cat].set_index("tg").loc[list(TGS)]
         x = np.arange(3)
-        ax.bar(x, s.overshoot * 100, 0.55, color=[TG[k] for k in TGS], label="at the end of the 15 minutes")
+        ax.bar(x, s.overshoot * 100, 0.55, color=[TG[k] for k in TGS], label="at the end of the 30 minutes")
         ax.errorbar(x, s.overshoot * 100, yerr=[(s.overshoot - s.lo) * 100, (s.hi - s.overshoot) * 100],
                     fmt="none", ecolor=TEXT, lw=1)
         ax.scatter(x, s.next_trades * 100, marker="D", s=60, color=SUBTLE, zorder=3, label="at the next trades")
@@ -687,7 +687,7 @@ def sp_sport():
     t = t[(t.sport != "other") & (t.moves >= 1500)].sort_values("overshoot")
     fig, ax = plt.subplots(figsize=(8, 5))
     y = np.arange(len(t))
-    ax.barh(y + 0.18, t.overshoot * 100, 0.34, color=MUTED, label="end of the 15 minutes")
+    ax.barh(y + 0.18, t.overshoot * 100, 0.34, color=MUTED, label="end of the 30 minutes")
     ax.barh(y - 0.18, t.next_trades * 100, 0.34, color=FOAM, label="next trades")
     ax.set_yticks(y, [f"{s}  ({n / 1000:.0f}k)" for s, n in zip(t.sport, t.moves)], fontsize=9)
     ax.axvline(0, color=TEXT, lw=1)
@@ -727,13 +727,157 @@ def f10_reaction():
     save(fig, "f10_reaction")
 
 
+# ---------------------------------------------------------------- round 11: parameters, traders
+
+def count_colours(labels):
+    return [TG["1"] if k == "1" else TG["2-3"] if k in ("2", "3") else TG["4+"] for k in labels]
+
+
+def elbow_panel(ax, c, k, now, title, xlabel, ylabel, yscale=1, ypct=False, xfmt="{:g}"):
+    """One parameter's curve (local_data/r11_curves_all.csv) with its knee, the value used now
+    (dashed) and, where it changed in round 11, the value used before (dotted)."""
+    s = c[c.curve == k.curve]
+    ax.plot(s.x, s.y * yscale, "-", color=IRIS, lw=2)
+    ax.plot(s.x, s.y * yscale, "o", color=IRIS, ms=3.5)
+    y = s.y * yscale
+    flat = ypct and y.max() - y.min() < 1          # under a point over the whole range: no knee
+    if not flat:
+        ky = s.loc[s.x == k.knee, "y"].iloc[0] * yscale
+        ax.plot([k.knee], [ky], "o", ms=11, mfc="none", mec=ROSE, mew=2.2)
+    ax.axvline(now, color=TEXT, lw=1.1, ls="--")
+    if now != k.chosen:
+        ax.axvline(k.chosen, color=MUTED, lw=1.1, ls=":")
+    f = xfmt.format
+    lab = "flat: under 1 point" if flat else f"knee {f(k.knee)}"
+    lab += f"\nused {f(now)}" + (f" (was {f(k.chosen)})" if now != k.chosen else "")
+    rising = y.iloc[-1] > y.iloc[0]
+    ax.text(0.97, 0.05 if rising else 0.95, lab, transform=ax.transAxes, ha="right", va="bottom" if rising else "top",
+            fontsize=8.5, color=TEXT, bbox=dict(boxstyle="round,pad=0.25", fc=BASE, ec="none", alpha=0.9))
+    ax.set_title(title, fontsize=10)
+    ax.set_xlabel(xlabel, fontsize=8.5)
+    ax.set_ylabel(ylabel, fontsize=8.5)
+    ax.tick_params(labelsize=8)
+    if ypct:
+        if y.max() - y.min() < 4:          # a flat result: show it on a 6-point scale, not zoomed in
+            mid = (y.max() + y.min()) / 2
+            ax.set_ylim(mid - 3, mid + 3)
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+        ax.yaxis.set_major_locator(plt.MaxNLocator(5, integer=True))
+
+
+# values used after round 11, where they changed (the knees file keeps the old ones as `chosen`)
+NOW = {"threshold": 13, "threshold_os": 13, "cut_start": 5, "cut_start_os": 5, "cut_end": 5,
+       "cut_end_os": 5, "slot": 30, "slot_os": 30, "next_n": 8}
+JUMPS_K, OS_PCT = "price jumps (thousands)", "overshoot, % of the jump"
+ELBOWS = [  # curve, title, x label, y label, y scale, y in %
+    ("threshold", "Jump threshold: jumps", "minimum jump, points", JUMPS_K, 1e-3, False),
+    ("threshold_os", "Jump threshold: result", "minimum jump, points", OS_PCT, 100, True),
+    ("cut_start", "Start cut: jumps", "% of life left out at the start", JUMPS_K, 1e-3, False),
+    ("cut_start_os", "Start cut: result", "% of life left out at the start", OS_PCT, 100, True),
+    ("cut_end", "End cut: jumps", "% of life left out at the end", JUMPS_K, 1e-3, False),
+    ("cut_end_os", "End cut: result", "% of life left out at the end", OS_PCT, 100, True),
+    ("slot", "Slot length: jumps", "slot length, minutes", JUMPS_K, 1e-3, False),
+    ("slot_os", "Slot length: result", "slot length, minutes", OS_PCT, 100, True),
+    ("edge", "Settle band: jumps", "band edge, points from 0% or 100%", JUMPS_K, 1e-3, False),
+    ("next_n", "Next trades: how many", "trades averaged", "overshoot at the\nnext trades, %", 100, True),
+    ("next_max", "Next trades: how long to wait", "minutes allowed", "jumps with next trades, %", 100, True),
+    ("takers", "Trader groups", "exact number of traders", "overshoot, % of the jump", 100, True),
+    ("bins", "Baseline price bins", "number of bins", "overshoot, % of the jump", 100, True),
+    ("sample", "Random sample for the baseline", "% of slots sampled", "spread of the overshoot,\npoints", 100, False),
+    ("boot", "Resamples for the ranges", "resamples", "spread of the range's\nlower end, points", 100, False),
+]
+
+
+def m_elbows():
+    c = pd.read_csv(LD + "r11_curves_all.csv")
+    kn = pd.read_csv(LD + "r11_knees_all.csv").set_index("curve")
+    fig, axes = plt.subplots(4, 4, figsize=(14, 12))
+    for ax, (name, title, xl, yl, ys, yp) in zip(axes.flat, ELBOWS):
+        k = kn.loc[name].copy()
+        k["curve"] = name
+        elbow_panel(ax, c, k, NOW.get(name, k.chosen), title, xl, yl, ys, yp)
+    for ax in axes.flat[len(ELBOWS):]:
+        ax.axis("off")
+    fig.suptitle("The elbow method for every parameter: circle = knee, dashed = value used, dotted = value before",
+                 fontsize=13, weight="bold", color=TEXT)
+    save(fig, "m_elbows")
+
+
+def f2_counts():
+    t = pd.read_csv(LD + "r11_traders.csv", dtype={"traders": str})
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True, gridspec_kw={"height_ratios": [1, 1.1]})
+    x = np.arange(len(t))
+    col = count_colours(t.traders)
+    a1.bar(x, t.share * 100, 0.7, color=col)
+    for i, (sh, n) in enumerate(zip(t.share, t.jumps)):
+        a1.text(i, sh * 100 + 1.2, f"{sh:.1%}\n{n:,}" if sh >= .01 else f"{sh:.1%}", ha="center", fontsize=7.5, color=TEXT)
+    a1.set_ylim(0, 82)
+    pct(a1)
+    a1.set_ylabel("share of price jumps")
+    a1.set_title("How many traders make a price jump, and how much it overshoots")
+    a2.bar(x, t.overshoot * 100, 0.7, color=col)
+    a2.errorbar(x, t.overshoot * 100, yerr=[(t.overshoot - t.lo) * 100, (t.hi - t.overshoot) * 100],
+                fmt="none", ecolor=TEXT, lw=1)
+    a2.axhline(0, color=SUBTLE, lw=1)
+    pct(a2)
+    a2.set_ylabel("overshoot, % of the jump")
+    a2.set_xticks(x, t.traders)
+    a2.set_xlabel("number of different traders who took liquidity in the jump's 30 minutes")
+    save(fig, "f2_trader-counts")
+
+
+def f3_giveback():
+    g = pd.read_csv(LD + "r11_giveback.csv", index_col=0)["next trades"] * 100
+    lab = ["< -50"] + [f"{int(round(float(i.split('..')[0]) * 100))}" for i in g.index[1:-1]] + ["> 150"]
+    fig, ax = plt.subplots(figsize=(10, 4.3))
+    x = np.arange(len(g))
+    ax.bar(x, g.values, 0.85, color=TG["1"])
+    zero, full = lab.index("0"), lab.index("100")
+    ax.axvline(zero - 0.5, color=SUBTLE, lw=1, ls=":")
+    ax.axvline(full - 0.5, color=SUBTLE, lw=1, ls=":")
+    top = g.max() * 1.05
+    ax.text(zero - 0.7, top, "the next trades\nwent further", ha="right", va="top", fontsize=8.5, color=SUBTLE)
+    ax.text(full - 0.3, top, "gave back all of it\nor more", ha="left", va="top", fontsize=8.5, color=SUBTLE)
+    ax.set_xticks(x, lab, fontsize=8, rotation=0)
+    ax.set_xlabel("share of the jump the next trades gave back, % (each bar: 10 points, e.g. '20' = 20-30%)")
+    pct(ax)
+    ax.set_ylabel("share of single-trader jumps")
+    ax.set_title("Single-trader jumps: how much the next trades gave back")
+    save(fig, "f3_giveback")
+
+
+def f2_accuracy():
+    a = pd.read_csv(LD + "r11_accuracy.csv", dtype={"group": str})
+    a = a[a.by == "k"]
+    fig, ax = plt.subplots(figsize=(10, 4.6))
+    x = np.arange(len(a))
+    ax.plot(x, a.expected_after * 100, "--", color=MUTED, lw=1.8)
+    ax.plot(x, a.expected_before * 100, ":", color=MUTED, lw=1.8)
+    ax.text(x[-1] + 0.15, a.expected_after.iloc[-1] * 100, "if the price after\nthe jump were right",
+            va="center", fontsize=8.5, color=SUBTLE)
+    ax.text(x[-1] + 0.15, a.expected_before.iloc[-1] * 100, "if the price before\nthe jump were right",
+            va="center", fontsize=8.5, color=SUBTLE)
+    ax.errorbar(x, a.right * 100, yerr=[(a.right - a.lo) * 100, (a.hi - a.right) * 100], fmt="none", ecolor=TEXT, lw=1)
+    ax.scatter(x, a.right * 100, s=60, c=count_colours(a.group), zorder=3)
+    ax.text(x[-1] + 0.15, a.right.iloc[-1] * 100, "actual", va="center", fontsize=8.5, color=TEXT, weight="bold")
+    ax.set_xticks(x, a.group)
+    ax.set_xlim(-0.5, len(a) + 1.6)
+    ax.set_ylim(35, 66)
+    pct(ax)
+    ax.set_xlabel("number of different traders in the jump's 30 minutes")
+    ax.set_ylabel("jumps that pointed toward\nthe final outcome, %")
+    ax.set_title("Jumps point the right way more often than the old price implied, less than the new one")
+    save(fig, "f2_accuracy")
+
+
 ALL = {"ex1": ex1_example, "ex2": ex2_overshoot, "spikes": bg_spikes, "pipeline": bg_pipeline,
        "f1_hero": f1_hero, "f1_splits": f1_splits, "f1_tags": f1_tags,
        "f2_traders": f2_traders, "f2_money": f2_money, "f2_robustness": f2_robustness,
        "f2_controlled": f2_controlled, "f2_wallets": f2_wallets, "f3": f3_decay,
        "f5": f5_fade, "f6": f6_structure, "f6_tags": f6_tags, "f8": f8_close_next, "f8_conf": f8_confirmation,
        "sp_groups": sp_groups, "sp_sport": sp_sport, "f4_versions": f4_versions,
-       "f10_reaction": f10_reaction}
+       "f10_reaction": f10_reaction, "m_elbows": m_elbows, "f2_counts": f2_counts,
+       "f3_giveback": f3_giveback, "f2_accuracy": f2_accuracy}
 
 
 def main(names):

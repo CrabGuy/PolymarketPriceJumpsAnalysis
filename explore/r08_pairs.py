@@ -1,6 +1,6 @@
 """
 Build tmp/sib_pairs.parquet for the server (remote/s8_wallets.py, pass 3): one row per
-(big move, other market of the same event), from local_data/r03_big_moves_900.parquet and
+(big move, other market of the same event), from local_data/r03_big_moves_main.parquet and
 the markets' event ids. Written to local_data/r05/sib_pairs.parquet, then uploaded.
 Usage: python explore/r08_pairs.py
 """
@@ -8,7 +8,7 @@ import pandas as pd
 
 
 def main():
-    b = pd.read_parquet("local_data/r03_big_moves_900.parquet", columns=["market", "t_close"])
+    b = pd.read_parquet("local_data/r03_big_moves_main.parquet", columns=["market", "t_close"])
     mk = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "event_id"])
     mk = mk[pd.to_numeric(mk.id, errors="coerce").notna()].assign(market=lambda x: x.id.astype(int))
     mk = mk.drop_duplicates("market")[["market", "event_id"]]

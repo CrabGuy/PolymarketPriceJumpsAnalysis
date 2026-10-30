@@ -4,7 +4,7 @@ Round 8, part 2: betting against big moves, with returns that a few huge wins ca
 Returns per $1 are heavy-tailed: betting against a move to 6% buys at 6 cents and can win
 about 15 times the stake. So the mean return is reported next to a trimmed mean: returns
 clipped at the 1st and 99th percentile of all bets (the same cut points for every group).
-Input local_data/r06/r06_fade_moves.parquet (explore/r06_fade.py: taker entry = first 5
+Input local_data/r06/r06_fade_moves.parquet (explore/r06_fade.py: taker entry = first 8
 trades on the bettor's side; n_taker = return per $ net of the usual mispricing).
 95% intervals from resampling markets (300). Output local_data/r08_fade_robust.csv.
 Usage: python explore/r08_fade_robust.py

@@ -1,9 +1,9 @@
 """
 Round 7 (updated round 9): price jumps in sports and esports markets.
 
-Input: the main jumps (local_data/r03_big_moves_900.parquet and r03_tradable_900.parquet from
-explore/r03_robustness.py): 15-min VWAP slots, jumps of 10 points or more, the first and last
-10% of each market's life left out. Since round 9 the window scales with the market, so the
+Input: the main jumps (local_data/r03_big_moves_main.parquet and r03_tradable_main.parquet from
+explore/r03_robustness.py): 30-min VWAP slots, jumps of 13 points or more, the first and last
+5% of each market's life left out. Since round 9 the window scales with the market, so the
 games keep their jumps and the separate whole-life run (remote/s7_events.py "sports") is no
 longer used.
 
@@ -34,9 +34,9 @@ TGS = ("1", "2-3", "4+")
 
 
 def load():
-    e = pd.read_parquet("local_data/r03_big_moves_900.parquet")
+    e = pd.read_parquet("local_data/r03_big_moves_main.parquet")
     e = e[e.cat.isin(["sports", "esports"])].copy()
-    t = pd.read_parquet("local_data/r03_tradable_900.parquet", columns=["market", "t_close", "oe"])
+    t = pd.read_parquet("local_data/r03_tradable_main.parquet", columns=["market", "t_close", "oe"])
     e = e.merge(t, on=["market", "t_close"], how="left")
     tags = pd.read_csv("local_data/market_tags.csv", dtype=str)
     tags = tags[tags.market_id.astype(int).isin(e.market)].drop_duplicates("market_id")

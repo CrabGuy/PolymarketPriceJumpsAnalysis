@@ -3,15 +3,15 @@ Round 6, part C: which markets see single traders over-push the price?
 
 Input: local_data/r06/micro/k*.parquet (stage 6, one row per event market: concentration of
 taker volume and microstructure measures, all before the resolution cut),
-local_data/r03_big_moves_900.parquet (every big 15-min move) and the tags.
+local_data/r03_big_moves_main.parquet (every big 30-min move) and the tags.
 
 Per market:
-  one-trader rate    big moves made by a single taker per 100 active 15-min bars
+  one-trader rate    big moves made by a single taker per 100 active 30-min bars
   one-trader share   share of the market's big moves made by a single taker
   overshoot (1)      overshoot of its single-taker moves (ratio of sums; calibration by
                      question type, as in rounds 4-5)
 Measures (stage 6): Gini and Herfindahl of taker volume, top wallet's share, top 10% share,
-Kyle's lambda (log-odds change per $1k of signed flow, 15-min bars), variance ratio VR(4)
+Kyle's lambda (log-odds change per $1k of signed flow, 30-min bars), variance ratio VR(4)
 (< 1 = changes reverse), Roll spread, median buy-sell gap in the same minute,
 two-sidedness of taker flow, plus size (takers, trades, $).
 
@@ -62,7 +62,7 @@ def load():
     mk["log_trades"] = np.log10(mk.trades)
     mk["log_bars"] = np.log10(mk.bars)
     info = market_info()
-    big = pd.read_parquet("local_data/r03_big_moves_900.parquet").join(info, on="market")
+    big = pd.read_parquet("local_data/r03_big_moves_main.parquet").join(info, on="market")
     big["oq"] = osh(big, big.p_close, calib(), "qtype")
     big = big[big.oq.notna()]
     one = big[big.tg == "1"]

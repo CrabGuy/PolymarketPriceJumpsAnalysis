@@ -3,7 +3,7 @@ Stage 4: fixed-length price paths for motif/discord search, and up/down moves.
 
 Modes
   moves <buckets...>     non-recurring markets (tmp/buckets): for every big move
-                         (VWAP basis, 15-min bars, jumps of >= 10 points, same window as s3),
+                         (VWAP basis, s2.BAR bars, jumps of >= 13 points, same window as s3),
                          the YES price at the end of 55 five-minute steps, from 35 min
                          before to 4 h after the move bar closes (forward-filled VWAP).
                          -> tmp/paths/moves_<k>.parquet (market, t_close, p0..p54)
@@ -31,7 +31,7 @@ import s2_events as s2
 import s3_events as s3
 
 STEP = 300
-MIN_PTS = 0.10                       # a price jump: at least 10 points
+MIN_PTS = 0.13                       # a price jump: at least 13 points (round 11; was 10)
 OFFSETS = np.arange(-7, 48)          # 5-min steps relative to the move bar close
 N_UD = 30
 DUR = {"5M": 5, "15M": 15, "1H": 60, "4h": 240, "daily": 1440}
@@ -63,7 +63,7 @@ def asof(key_sorted, values, q):
 
 
 def move_paths(k, end_ts):
-    e, _ = s3.process(k, end_ts, 900)
+    e, _ = s3.process(k, end_ts, s2.BAR)
     if e is None:
         return None
     e = e[(s2.sigmoid(s2.logit(e.y_pre) + e.move) - e.y_pre).abs() >= MIN_PTS]
