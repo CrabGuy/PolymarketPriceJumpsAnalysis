@@ -3,7 +3,7 @@ Round 2: do big price moves overshoot, and does it depend on how they were made?
 
 Input: the moves table from remote/s2_events.py (local_data/r02_events/e*.parquet), the
 markets file (final outcomes) and tags. Uses the VWAP price basis (robust to a sweep's
-extreme last fill) and price jumps: moves of at least MIN_PTS (16 probability points).
+extreme last fill) and price jumps: moves of at least MIN_PTS (15 probability points).
 
 Metric (no horizon, no ratios of small numbers): the final outcome (1 if YES won, else 0,
 markets with a clear 0/1 resolution only) is compared with the price right after the move.
@@ -22,20 +22,23 @@ Confidence intervals: bootstrap over markets.
 Usage: python explore/r02_persistence.py
 """
 import glob
+import os
 import sys
 
 import numpy as np
 import pandas as pd
 
+MARKETS = os.environ.get("PM_MARKETS", "local_data/markets_final.parquet")   # data files (the server runs set these)
+TAGS = os.environ.get("PM_TAGS", "local_data/market_tags.csv")
 # Every value below was set by the elbow method (explore/r12_joint.py, explore/r12_params.py); the
 # server stages use the same values (remote/s2_events.py, s3_events.py).
-MIN_PTS = 0.16       # a price jump: at least 16 points
+MIN_PTS = 0.15       # a price jump: at least 15 points
 BAR = 1800           # slot length in seconds (30 minutes)
-LIFE_CUT_START = 0.075  # share of each market's life left out at the start
+LIFE_CUT_START = 0.07   # share of each market's life left out at the start
 LIFE_CUT_END = 0.045    # share left out at the end
 EDGE = 0.03          # settled = the price left [EDGE, 1 - EDGE] for good
 CLIP = 0.02          # prices are clipped to [CLIP, 1 - CLIP] before jumps and log-odds are computed
-N_NEXT = 7           # next trades: how many
+N_NEXT = 5           # next trades: how many
 T_NEXT = 2700        # next trades: within this many seconds
 OUTCOME_Q = 0.995    # a market resolved YES if its first outcome price is above this, NO if below 1 - it
 # Statistics and groups (explore/r12_params.py)
@@ -60,8 +63,15 @@ TAG_MIN_JUMPS = 200  # F1: tags need this many markets with price jumps
 FOLLOW_UP = 1200     # F10: a new trade within this many seconds of the slot's close
 # Crypto up/down (F8), from explore/r12_joint.py (mode cx) and r12_params.py
 CX_MIN_PTS = 0.18
+CX_CLIP = 0.03       # crypto: prices clipped to [CX_CLIP, 1 - CX_CLIP]
 CX_MOVED = 0.75      # a related market "moved" if its log-odds changed by at least this
 CX_POINTS = 30       # points per market in the crypto chains (F9)
+CX_K_CROWD = 6       # crypto: a crowd jump has at least this many traders
+CX_TG_EDGES = [0, 1, CX_K_CROWD - 1, np.inf]
+CX_TG_LABELS = ["1", f"2-{CX_K_CROWD - 1}" if CX_K_CROWD > 3 else "2", f"{CX_K_CROWD}+"]
+CX_N_BINS = 8        # crypto: price bins of the usual-error baseline
+CX_N_RESAMPLES = 150  # crypto: market resamples for the ranges
+CX_OUTCOME_Q = 0.6    # crypto: outcome threshold
 CX_MIN_TRADES = 50   # crypto markets need this many trades in their window (F9)
 # Pattern search (F9), from explore/r12_f9.py
 F9_STEP = 10         # minutes between the points of a path
@@ -107,11 +117,12 @@ def random_slots():
     return r[keep].reset_index(drop=True)
 
 
-def outcomes():
-    mk = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "outcome_prices"])
+def outcomes(q=None):
+    mk = pd.read_parquet(MARKETS, columns=["id", "outcome_prices"])
     first = mk.outcome_prices.str.strip("[]").str.split(",").str[0].str.strip(" '\"")
     y = pd.to_numeric(first, errors="coerce")
-    out = pd.Series(np.where(y > OUTCOME_Q, 1.0, np.where(y < 1 - OUTCOME_Q, 0.0, np.nan)),
+    q = OUTCOME_Q if q is None else q
+    out = pd.Series(np.where(y > q, 1.0, np.where(y < 1 - q, 0.0, np.nan)),
                     index=pd.to_numeric(mk.id, errors="coerce"))
     return out[~out.index.duplicated()]
 

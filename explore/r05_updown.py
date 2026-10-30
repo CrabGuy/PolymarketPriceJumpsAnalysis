@@ -29,8 +29,10 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import CLIP, CX_MIN_PTS, CX_MOVED, N_RESAMPLES, TG_EDGES, TG_LABELS, outcomes, sigmoid  # noqa: E402
-from r03_robustness import BINS  # noqa: E402
+from r02_persistence import (CX_CLIP, CX_MIN_PTS, CX_MOVED, CX_N_BINS, CX_N_RESAMPLES, CX_OUTCOME_Q,  # noqa: E402
+                             CX_TG_EDGES, CX_TG_LABELS, outcomes, sigmoid)
+
+BINS = np.linspace(0, 1, CX_N_BINS + 1)
 
 OUT = "local_data/r05/"
 DUR = {"5M": 5, "15M": 15, "1H": 60}
@@ -44,7 +46,7 @@ def share(x, col):
     return x[col].sum() / x.absdp.sum()
 
 
-def boot(x, col, n=N_RESAMPLES):
+def boot(x, col, n=CX_N_RESAMPLES):
     g = x.groupby("market").agg(a=(col, "sum"), b=("absdp", "sum"))
     rng = np.random.default_rng(4)
     a, b = g.a.values, g.b.values
@@ -90,20 +92,20 @@ def price_at(paths, asset, dur, end, t):
 
 
 def logit(p):
-    p = np.clip(p, CLIP, 1 - CLIP)
+    p = np.clip(p, CX_CLIP, 1 - CX_CLIP)
     return np.log(p / (1 - p))
 
 
 def load_moves(info, min_pts=CX_MIN_PTS, min_logit=0.0):
     e = pd.concat([pd.read_parquet(f) for f in glob.glob(EVENTS)], ignore_index=True)
     e = e.merge(info, on="market")
-    e["outcome"] = e.market.map(outcomes())
+    e["outcome"] = e.market.map(outcomes(CX_OUTCOME_Q))
     e = e[e.outcome.notna()].copy()
     e["L_pre"] = logit(e.y_pre)
     e["p_close"] = sigmoid(e.L_pre + e.move)
     e["sgn"] = np.sign(e.move)
     e["absdp"] = (e.p_close - e.y_pre).abs()
-    e["tg"] = pd.cut(e.takers, TG_EDGES, labels=TG_LABELS)
+    e["tg"] = pd.cut(e.takers, CX_TG_EDGES, labels=CX_TG_LABELS)
     e["min_left"] = (e.end - e.t_close) / 60
     e["stage"] = pd.cut(e.min_left / (e.dur_s / 60), [-1e-9, 0.25, 0.5, 0.75, 1.0001],
                         labels=["last quarter", "third", "second", "first quarter"])

@@ -24,7 +24,7 @@ import pandas as pd
 
 import s2_events as s2
 
-ENTRY_N = 7                    # next trades: how many (elbow)
+ENTRY_N = 5                    # next trades: how many (elbow)
 ENTRY_MAX = 2700               # next trades: within this many seconds (elbow)
 SAMPLE = 0.05
 OUT_ROOT = "tmp/events3"

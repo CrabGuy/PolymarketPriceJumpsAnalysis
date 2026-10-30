@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import outcomes  # noqa: E402
+from r02_persistence import MARKETS as MARKETS_FILE, outcomes  # noqa: E402
 from r03_robustness import cat_baseline, overshoot_cat  # noqa: E402
 from elbow import knee  # noqa: E402
 
@@ -271,7 +271,11 @@ def c_cx_min_trades():
 # ---------------------------------------------------------------- outcome and Kyle's lambda gap
 
 def c_outcome():
-    mk = pd.read_parquet("local_data/markets_final.parquet", columns=["outcome_prices"])
+    """Event markets only: the crypto up/down markets have their own curve (c_cx_outcome)."""
+    mk = pd.read_parquet("local_data/markets_final.parquet", columns=["id", "outcome_prices"])
+    t = pd.read_csv("local_data/market_tags.csv", dtype=str)
+    ud = set(t[t.tags.str.contains("up-or-down", na=False)].market_id)
+    mk = mk[~mk.id.astype(str).isin(ud)]
     f = pd.to_numeric(mk.outcome_prices.str.strip("[]").str.split(",").str[0].str.strip(" '\""), errors="coerce")
     x = np.array([.5, .6, .7, .8, .9, .95, .97, .98, .99, .995, .999, .9999, 1.0])
     return x, np.array([(np.maximum(f, 1 - f) >= v).sum() for v in x])
@@ -279,11 +283,48 @@ def c_outcome():
 
 def c_gap():
     from r02_persistence import BAR
-    g = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r12/grid/events/g*.parquet")])
+    g = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r12/full/g/g*.parquet")])
     s = g[g.slot == BAR].groupby("gap").n.sum().sort_index()
     c = s.cumsum() / s.sum()
     x = np.array([0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 18, 24, 36, 48])
     return x, np.array([c[c.index <= h * 3600 / BAR].iloc[-1] * 100 for h in x])
+
+
+# ---------------------------------------------------------------- crypto statistics and groups (F8)
+
+def cx_moves():
+    """All crypto moves with an outcome (any size) and the jumps (CX_MIN_PTS)."""
+    import r05_updown as ud
+    info = ud.market_info()
+    big_ = ud.load_moves(info)
+    e = pd.concat([pd.read_parquet(f) for f in glob.glob(ud.EVENTS)], ignore_index=True).merge(info, on="market")
+    e["outcome"] = e.market.map(outcomes())
+    return e[e.outcome.notna()], big_, info
+
+
+def c_cx_crowd(big_):
+    x = np.arange(1, 31)
+    return shares([big_[big_.takers >= k] for k in x], x)
+
+
+def c_cx_bins(e):
+    err = (e.outcome - e.y_pre).values
+    sst = ((err - err.mean()) ** 2).sum()
+    x = np.array([2, 3, 4, 5, 8, 10, 15, 20, 25, 30, 40, 50, 100])
+    y = []
+    for k in x:
+        b = pd.cut(e.y_pre, np.linspace(0, 1, k + 1), include_lowest=True)
+        m = pd.Series(err).groupby([e.asset.values, e.dur.values, b.values], observed=True).transform("mean").values
+        y.append(1 - ((err - m) ** 2).sum() / sst)
+    return x, np.array(y)
+
+
+def c_cx_outcome(info):
+    mk = pd.read_parquet(MARKETS_FILE, columns=["id", "outcome_prices"])
+    mk = mk[pd.to_numeric(mk.id, errors="coerce").isin(info.market)]
+    f = pd.to_numeric(mk.outcome_prices.str.strip("[]").str.split(",").str[0].str.strip(" \'\""), errors="coerce")
+    x = np.array([.5, .6, .7, .8, .9, .95, .97, .98, .99, .995, .999, .9999, 1.0])
+    return x, np.array([(np.maximum(f, 1 - f) >= v).sum() for v in x])
 
 
 # ---------------------------------------------------------------- F10
@@ -296,19 +337,23 @@ def c_follow_up(b):
 def main(names):
     rows, knees = [], []
 
-    def add(name, x, y, what, log_x=False):
+    def add(name, x, y, what, log_x=False, fit_sqrt=False):
         xx = x                     # one rule for every curve: a linear axis
-        k = knee(xx, y)
+        if fit_sqrt:               # Monte Carlo noise falls as c / sqrt(M): take the knee of the fitted curve
+            c = np.sum(y / np.sqrt(x)) / np.sum(1 / x)
+            k = knee(xx, c / np.sqrt(np.asarray(x, float)))
+        else:
+            k = knee(xx, y)
         rows.append(pd.DataFrame({"curve": name, "x": x, "y": y}))
         knees.append({"curve": name, "knee": x[k], "what": what})
         print(f"{name:14s} knee {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
 
-    todo = set(names) or {"stats", "groups", "f2", "f4", "f5", "f6", "f8", "f10", "other"}
+    todo = set(names) or {"stats", "groups", "f2", "f4", "f5", "f6", "f8", "f10", "other", "cx"}
     b = big()
     if "stats" in todo:
         r = randoms()
         add("sample", *c_sample(b, r), "spread of the overshoot, points")
-        add("resamples", *c_resamples(b), "spread of the range's lower end, points")
+        add("resamples", *c_resamples(b), "spread of the range's lower end, points", fit_sqrt=True)
         add("bins", *c_bins(r), "share of the calibration error explained")
     if "groups" in todo:
         add("crowd", *c_crowd(b), "overshoot of jumps with at least k traders, %")
@@ -339,6 +384,12 @@ def main(names):
         add("moved", *c_moved(), "related markets that moved, %")
         add("cx_points", *c_cx_points(), "error of the coarser path, points")
         add("cx_min_trades", *c_cx_min_trades(), "crypto markets kept")
+    if "cx" in todo:
+        e, big_, info = cx_moves()
+        add("cx_crowd", *c_cx_crowd(big_), "crypto: overshoot of jumps with at least k traders, %")
+        add("cx_bins", *c_cx_bins(e), "crypto: share of the calibration error explained")
+        add("cx_resamples", *c_resamples(big_), "crypto: spread of the range's lower end, points", fit_sqrt=True)
+        add("cx_outcome", *c_cx_outcome(info), "crypto markets with a clear outcome")
     if "other" in todo:
         add("outcome", *c_outcome(), "markets with a clear outcome")
         add("kyle_gap", *c_gap(), "consecutive slots within the gap, %")

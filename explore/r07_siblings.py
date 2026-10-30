@@ -38,7 +38,7 @@ sys.path.insert(0, "explore")
 from r05_siblings import GROUPS, boot_share, share  # noqa: E402
 from r02_persistence import OFFSET_HI, OFFSET_LO, TG_EDGES, TG_LABELS  # noqa: E402
 
-SRC = "local_data/r12/w8/"
+SRC = "local_data/r13/w8/"
 OUT = "local_data/r07/"
 VERSIONS = {"all trades": "p_close", "without scripts' fast trades": "p_close_noauto10",
             "users only": "p_close_users10", "without scripts (cut 0.05)": "p_close_noauto05",

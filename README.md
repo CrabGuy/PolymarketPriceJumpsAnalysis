@@ -7,10 +7,11 @@ each one against how the market finally resolved.
 **Read the report: [report/REPORT.pdf](report/REPORT.pdf)** (also as [Markdown](report/REPORT.md))
 
 ## Main results
-A price jump here is a 30-minute average price at least 16 points away from the previous
-one, in the middle of a market's life (the first 7.5% and the last 4.5% are left out).
+A price jump here is a 30-minute average price at least 15 points away from the previous
+one, in the middle of a market's life (the first 7% and the last 4.5% are left out).
 These values and every other parameter were set by the elbow method, with the parameters
-that depend on each other searched together (section 2 of the report); every quantity is
+that depend on each other searched together, on every market (section 2 of the report); the
+crypto up/down markets have their own values. Every quantity is
 defined and explained by a formula (section 6.1).
 - **Price jumps overshoot by over a third.** Judged by the final outcome, just under two
   thirds of a jump is justified; the rest is taken back later. This holds in every year and

@@ -34,11 +34,15 @@ sys.path.insert(0, "explore")
 from report_style import (BASE, MUTED, SUBTLE, TEXT, HL_MED, LOVE, GOLD, ROSE, PINE, FOAM, IRIS,  # noqa: E402
                           TG, TG_LABEL, UP, DOWN)
 from r02_persistence import (BAR, CROWD, EDGE, FEW, K_CROWD, LIFE_CUT_END, LIFE_CUT_START, MONEY_X,  # noqa: E402
-                             TG_EDGES, TG_LABELS, F9_BEFORE, F9_STEP, random_slots, share)
+                             TG_EDGES, TG_LABELS, F9_BEFORE, F9_STEP, CX_TG_LABELS, random_slots, share)
 
 OUT = "report/plots/"
 LD = "local_data/"
 TGS = tuple(TG_LABELS)
+CX_TGS = tuple(CX_TG_LABELS)                     # crypto trader groups (F8), from their own knee
+CX_TG = dict(zip(CX_TGS, (LOVE, GOLD, PINE)))
+CX_TG_LABEL = {k: "1 trader" if k == "1" else f"{k} traders" for k in CX_TGS}
+CX_CROWD = CX_TGS[2]
 EXAMPLE = 523331      # "Will Apple launch another iPhone on February 19?" (2025)
 
 
@@ -615,13 +619,13 @@ def f8_close_next():
     r = pd.read_csv(LD + "r05/r05_ud_raw_len.csv")
     r = r[r.moves >= 1000]
     order = {"5M": "5-min", "15M": "15-min", "1H": "1-hour"}
-    r = r.assign(lab=[f"{order[d]} markets, {TG_LABEL[str(t)]}" for d, t in zip(r.dur, r.takers)])
+    r = r.assign(lab=[f"{order[d]} markets, {CX_TG_LABEL[str(t)]}" for d, t in zip(r.dur, r.takers)])
     fig, ax = plt.subplots(figsize=(8.5, 4.6))
     y = np.arange(len(r))[::-1]
     for yi, (_, s) in zip(y, r.iterrows()):
         ax.annotate("", xy=(s.next * 100, yi), xytext=(s.close * 100, yi),
                     arrowprops=dict(arrowstyle="->", color=MUTED, lw=1.5))
-        ax.scatter(s.close * 100, yi, s=70, color=TG[str(s.takers)], zorder=3)
+        ax.scatter(s.close * 100, yi, s=70, color=CX_TG[str(s.takers)], zorder=3)
         ax.scatter(s.next * 100, yi, s=60, marker="D", color=SUBTLE, zorder=3)
     ax.scatter([], [], s=70, color=MUTED, label="at the end of the 1-minute bar (colour = traders)")
     ax.scatter([], [], s=60, marker="D", color=SUBTLE, label="at the next trades (1-2 s later for crowds)")
@@ -643,12 +647,12 @@ def f8_confirmation():
     labels = ["other coin's market\nmoved the other way", "other coin's market\ndid not move", "other coin's market\nmoved the same way"]
     fig, ax = plt.subplots(figsize=(8, 4.6))
     x = np.arange(3)
-    for k, tg in enumerate(TGS):
+    for k, tg in enumerate(CX_TGS):
         s = c[c.takers.astype(str) == tg].set_index("it").loc[order]
         ax.errorbar(x + (k - 1) * 0.06, s.close * 100, yerr=[(s.close - s.lo) * 100, (s.hi - s.close) * 100],
-                    fmt="o-", color=TG[tg], lw=2.2, ms=8, capsize=0, label=f"{TG_LABEL[tg]}, end of the minute")
-    s = c[c.takers.astype(str) == CROWD].set_index("it").loc[order]
-    ax.plot(x, s["next trades"] * 100, "D--", color=SUBTLE, lw=1.5, label=f"{TG_LABEL[CROWD]}, next trades")
+                    fmt="o-", color=CX_TG[tg], lw=2.2, ms=8, capsize=0, label=f"{CX_TG_LABEL[tg]}, end of the minute")
+    s = c[c.takers.astype(str) == CX_CROWD].set_index("it").loc[order]
+    ax.plot(x, s["next trades"] * 100, "D--", color=SUBTLE, lw=1.5, label=f"{CX_TG_LABEL[CX_CROWD]}, next trades")
     ax.axhline(0, color=TEXT, lw=1)
     ax.set_xticks(x, labels)
     pct(ax)
@@ -776,7 +780,7 @@ DEFINITION = [  # curve, title, x label, y label, y scale, y in %
 
 
 def definition_panels(mode, name, title):
-    c = pd.read_csv(LD + f"r12/{mode}_curves.csv")
+    c = pd.read_csv(LD + f"r12/full/{mode}_curves.csv")
     fig, axes = plt.subplots(2, 4, figsize=(14, 6.6))
     for ax, (cv, t, xl, yl, ys, yp) in zip(axes.flat, DEFINITION):
         d = c[c.curve == cv]
@@ -798,7 +802,7 @@ def m_grid():
     fig, axes = plt.subplots(1, 2, figsize=(12.5, 4.8))
     for ax, (f, row, col, rl, cl) in zip(axes, (("slot_theta", "slot", "theta", "slot length, minutes", "jump threshold, points"),
                                                ("cut_edge", "edge", "cut_end", "settle band, points", "cut at the end, % of life"))):
-        g = pd.read_csv(LD + f"r12/events_grid_{f}.csv")
+        g = pd.read_csv(LD + f"r12/full/events_grid_{f}.csv")
         m = g.pivot(index=row, columns=col, values="jumps")
         im = ax.imshow(np.log10(m.values), aspect="auto", origin="lower", cmap="Purples",
                        extent=[-0.5, m.shape[1] - 0.5, -0.5, m.shape[0] - 0.5])
@@ -847,6 +851,10 @@ PARAMS = [  # curve, title, x label, y label, y in %, log x (display only: every
     ("tag_min", "F6: tags with at least n markets", "n", "tags", False, False),
     ("tag_min_jumps", "F1: tags with at least n markets with jumps", "n", "tags", False, False),
     ("moved", "F8: related market moved", "log-odds", "moved, %", False, False),
+    ("cx_crowd", "F8: crypto crowd, at least K traders", "K", "overshoot", True, False),
+    ("cx_bins", "F8: crypto baseline bins", "bins", "calibration error explained", False, False),
+    ("cx_resamples", "F8: crypto resamples", "resamples", "spread of the range, points", False, False),
+    ("cx_outcome", "F8: crypto resolved beyond Q", "Q", "markets", False, False),
     ("follow_up", "F10: a trade within x minutes", "minutes", "overshoot", True, False),
     ("step", "F9: minutes between path points", "minutes", "error of the path, points", False, False),
     ("before", "F9: path start before the close", "minutes", "distance from the close, points", False, False),

@@ -1,6 +1,6 @@
 """
 Round 12: joint elbow search for the parameters that define a price jump, and for the
-next-trades price, on a random quarter of the markets (buckets 0-7 of remote/s12_grid.py).
+next-trades price, on every market (remote/s12_grid.py on all 32 buckets, run on the server).
 
 Parameters that depend on each other are searched together, by coordinate-wise fixed point:
 each one is set to the knee of its curve with all the others at their current knees, and the
@@ -24,6 +24,9 @@ with the knee of each row and column, to show how each knee depends on the other
 Outputs local_data/r12/<mode>_fixed.csv (the knee path), <mode>_curves.csv (each curve at the
 fixed point), <mode>_grid_slot_theta.csv, <mode>_grid_cut_edge.csv, <mode>_next.csv.
 Usage: python explore/r12_joint.py [events|cx]
+On the server, on every market (the grid is too large to copy): PM_GRID=tmp/grid PM_OUT=tmp/joint
+PM_MARKETS=<markets_final.parquet> PM_TAGS=<market_tags.csv> python r12_joint.py events (with
+r02_persistence.py, r03_robustness.py and elbow.py next to it); only the small CSVs come back.
 """
 import glob
 import os
@@ -33,18 +36,18 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import category, outcomes  # noqa: E402
+from r02_persistence import TAGS, category, outcomes  # noqa: E402
 from r03_robustness import cat_baseline, overshoot_cat  # noqa: E402
 from elbow import knee  # noqa: E402
 
-SRC = "local_data/r12/grid"
-OUT = "local_data/r12"
+SRC = os.environ.get("PM_GRID", "local_data/r12/grid")     # the server run reads tmp/grid and writes tmp/joint
+OUT = os.environ.get("PM_OUT", "local_data/r12")
 EDGES = (0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20)
 CLIPS = (0.001, 0.0025, 0.005, 0.01, 0.02, 0.03, 0.05)
 CUTS = np.arange(0, 30.5, 0.5) / 100
 THETAS = np.arange(5, 51) / 100
-START = {"events": dict(slot=1800, theta=0.13, cut_start=0.05, cut_end=0.05, edge=0.05, clip=0.01),
-         "cx": dict(slot=60, theta=0.13, cut_start=0.0, cut_end=0.0, edge=0.05, clip=0.01)}
+START = {"events": dict(slot=1800, theta=0.13, cut_start=0.05, cut_end=0.05, edge=0.05, clip=0.01),   # any start:
+         "cx": dict(slot=60, theta=0.13, cut_start=0.0, cut_end=0.0, edge=0.05, clip=0.01)}      # it converges
 N_GRID = np.arange(1, 17)
 T_GRID = {"events": np.array([1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180]),
           "cx": np.array([0.25, 0.5, 1, 2, 3, 5, 7.5, 10, 15])}
@@ -144,7 +147,7 @@ def row_knees(df, row, col):
 
 def with_outcome(x):
     out = outcomes()
-    tags = pd.read_csv("local_data/market_tags.csv", dtype=str)
+    tags = pd.read_csv(TAGS, dtype=str)
     cats = pd.Series(category(tags.tags).values, index=tags.market_id.astype(int).values)
     x = x.assign(outcome=x.market.map(out))
     x = x[x.outcome.notna()].copy()
