@@ -44,7 +44,7 @@ import s2_events as s2
 
 OUT = "tmp/micro"
 BAR = s2.BAR
-LAMBDA_GAP_BARS = 8 * 3600 // BAR  # Kyle's lambda: consecutive slots at most 8 h apart (elbow)
+LAMBDA_GAP_BARS = 6 * 3600 // BAR  # Kyle's lambda: consecutive slots at most 6 h apart (elbow)
 ENTRY_N = 5                    # as s3_events (elbow)
 ENTRY_MAX = 2700
 MIN_BARS_KYLE = 5               # low on purpose: the minimum is chosen later by the elbow method

@@ -2,7 +2,7 @@
 Round 5, part 4: momentum in crypto up/down markets, explored fully.
 
 Input (remote/s1x_bucket.py -> s4_paths.py cx / cxmoves):
-  local_data/r05/events_cx/e*.parquet   1-min price jumps (VWAP basis, >= 13 points, cut
+  local_data/r05/events_cx/<CX_SLOT>/e*.parquet   crypto price jumps (CX_SLOT-second slots, VWAP basis, cut
                                         only at the settle moment: the 10% window of the
                                         event markets changes these results, see
                                         explore/r09_crypto.py; next trades within 5 min) in every
@@ -16,8 +16,8 @@ baseline from the pre-move prices of each (asset, market length).
   1  by asset, market length and number of takers
   2  by month (Sep 2025 - May 2026), hour of day, weekend, minutes left, move size
   3  confirmation by related markets: did the same coin's market of another length, and
-     the other coin's market of the same length, move the same way in the same minute?
-     (Their price change over the move's 1-min bar, read from their 30-point paths.)
+     the other coin's market of the same length, move the same way in the same slot?
+     (Their price change over the jump's slot, read from their 30-point paths.)
   4  what a trader could do: follow (or fade) the move at the next trades, hold to the end.
 
 Usage: python explore/r05_updown.py [raw]
@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import (CX_CLIP, CX_MIN_PTS, CX_MOVED, CX_N_BINS, CX_N_RESAMPLES, CX_OUTCOME_Q,  # noqa: E402
+from r02_persistence import (CX_CLIP, CX_MIN_PTS, CX_SLOT, CX_MOVED, CX_N_BINS, CX_N_RESAMPLES, CX_OUTCOME_Q,  # noqa: E402
                              CX_TG_EDGES, CX_TG_LABELS, outcomes, sigmoid)
 
 BINS = np.linspace(0, 1, CX_N_BINS + 1)
@@ -37,7 +37,7 @@ BINS = np.linspace(0, 1, CX_N_BINS + 1)
 OUT = "local_data/r05/"
 DUR = {"5M": 5, "15M": 15, "1H": 60}
 OTHER = {"bitcoin": "ethereum", "ethereum": "bitcoin", "solana": "bitcoin", "xrp": "bitcoin"}
-EVENTS = OUT + "events_cx/60/e*.parquet"
+EVENTS = OUT + f"events_cx/{CX_SLOT}/e*.parquet"
 PATHS = OUT + "cx_paths/cx_*.parquet"
 CONF = CX_MOVED        # a related market "moved" if its log-odds changed by at least this
 
@@ -126,7 +126,7 @@ def load_moves(info, min_pts=CX_MIN_PTS, min_logit=0.0):
 
 
 def confirm(big, paths):
-    t1, t0 = big.t_close.values, big.t_close.values - 60
+    t1, t0 = big.t_close.values, big.t_close.values - CX_SLOT
     cols = {}
     # the same coin, other market lengths
     for d2, sec in (("5M", 300), ("15M", 900), ("1H", 3600)):
@@ -157,7 +157,7 @@ def confirm(big, paths):
 def main():
     info = market_info()
     big = load_moves(info)
-    print(f"big 1-min moves: {len(big):,} in {big.market.nunique():,} markets "
+    print(f"crypto jumps: {len(big):,} in {big.market.nunique():,} markets "
           f"({pd.to_datetime(big.t_close.min(), unit='s'):%Y-%m-%d} to {pd.to_datetime(big.t_close.max(), unit='s'):%Y-%m-%d})")
     # 1. asset x length x takers
     rows = []
@@ -193,7 +193,7 @@ def main():
                          "it": c, "takers": tg, "moves": len(x), "close": share(x, "oc"), "lo": lo, "hi": hi,
                          "next trades": share(x[x.oe.notna()], "oe")})
     r3 = pd.DataFrame(rows)
-    print("\n[3] overshoot by what the related market did in the same minute:")
+    print("\n[3] overshoot by what the related market did in the same slot:")
     print(r3.round(3).to_string(index=False))
     print("share of moves confirmed by the same coin's other market, by takers:")
     print(pd.crosstab(big.tg, big.conf_same, normalize="index").round(3).to_string())

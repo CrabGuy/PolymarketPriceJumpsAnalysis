@@ -35,7 +35,7 @@ import s3_events as s3
 
 STEP = 300
 MIN_PTS = 0.15                       # a price jump: at least 15 points (elbow)
-CX = dict(slot=60, min_pts=0.18, cut_start=0.18, cut_end=0.075, edge=0.03, clip=0.03, next_n=5, next_max=120)  # crypto (elbow)
+CX = dict(slot=30, min_pts=0.16, cut_start=0.0, cut_end=0.07, edge=0.03, clip=0.03, next_n=4, next_max=120)  # crypto (elbow)
 OFFSETS = np.arange(-7, 48)          # 5-min steps relative to the move bar close
 N_UD = 30
 DUR = {"5M": 5, "15M": 15, "1H": 60, "4h": 240, "daily": 1440}

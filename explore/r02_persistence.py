@@ -33,9 +33,9 @@ TAGS = os.environ.get("PM_TAGS", "local_data/market_tags.csv")
 # Every value below was set by the elbow method (explore/r12_joint.py, explore/r12_params.py); the
 # server stages use the same values (remote/s2_events.py, s3_events.py).
 MIN_PTS = 0.15       # a price jump: at least 15 points
-BAR = 1800           # slot length in seconds (30 minutes)
-LIFE_CUT_START = 0.07   # share of each market's life left out at the start
-LIFE_CUT_END = 0.045    # share left out at the end
+BAR = 1200           # slot length in seconds (20 minutes)
+LIFE_CUT_START = 0.065  # share of each market's life left out at the start
+LIFE_CUT_END = 0.055    # share left out at the end
 EDGE = 0.03          # settled = the price left [EDGE, 1 - EDGE] for good
 CLIP = 0.02          # prices are clipped to [CLIP, 1 - CLIP] before jumps and log-odds are computed
 N_NEXT = 5           # next trades: how many
@@ -44,42 +44,43 @@ OUTCOME_Q = 0.995    # a market resolved YES if its first outcome price is above
 # Statistics and groups (explore/r12_params.py)
 SAMPLE_SHARE = 0.01  # share of slots drawn at random for the usual-error baseline
 N_RESAMPLES = 150    # market resamples for every uncertainty range
-N_BINS = 20          # price bins of the usual-error baseline
-K_CROWD = 5          # a "crowd" jump has at least this many traders
+N_BINS = 15          # price bins of the usual-error baseline
+K_CROWD = 4          # a "crowd" jump has at least this many traders
 TG_EDGES = [0, 1, K_CROWD - 1, np.inf]                       # trader groups: 1 / a few / a crowd
 TG_LABELS = ["1", f"2-{K_CROWD - 1}", f"{K_CROWD}+"]
 FEW, CROWD = TG_LABELS[1], TG_LABELS[2]
-MONEY_X = 200        # "big money": at least this many dollars traded in the jump's slot
+MONEY_X = 100        # "big money": at least this many dollars traded in the jump's slot
 WALLET_MIN = 8       # wallets need this many single-trader jumps for the persistence check (F2)
-CONTROL_BINS = 3     # quantile bins of each continuous control in the F2 regression
-OFFSET_LO, OFFSET_HI = 0.55, 1.0   # F4: below LO = not offset, LO-HI = partly, from HI = offset
+CONTROL_BINS = 3     # quantile bins of each continuous control in the F2 regression (flat curve: no effect)
+OFFSET_LO, OFFSET_HI = 0.35, 0.85  # F4: below LO = not offset, LO-HI = partly, from HI = offset
 BET_BAND = 0.0       # F5: bets only on jumps that start inside [BET_BAND, 1 - BET_BAND] (flat curve: none)
-TRIM = 0.025         # F5: share of returns trimmed at each end
+TRIM = 0.015         # F5: share of returns trimmed at each end
 MIN_SLOTS = 50       # F6: markets need this many slots with trades
 VR_LAG = 6           # F6: variance ratio lag, in slots
 SPREAD_WIN = 120     # F6: buy-sell gap window, seconds
 TAG_MIN = 200        # F6: tags need this many markets
 TAG_MIN_JUMPS = 200  # F1: tags need this many markets with price jumps
-FOLLOW_UP = 1200     # F10: a new trade within this many seconds of the slot's close
+FOLLOW_UP = 600      # F10: a new trade within this many seconds of the slot's close
 # Crypto up/down (F8), from explore/r12_joint.py (mode cx) and r12_params.py
-CX_MIN_PTS = 0.18
+CX_SLOT = 30         # crypto: slot length in seconds (lowest reversal share)
+CX_MIN_PTS = 0.16
 CX_CLIP = 0.03       # crypto: prices clipped to [CX_CLIP, 1 - CX_CLIP]
-CX_MOVED = 0.75      # a related market "moved" if its log-odds changed by at least this
+CX_MOVED = 0.75      # a related market "moved" if its log-odds changed by at least this (straight curve: value kept)
 CX_POINTS = 30       # points per market in the crypto chains (F9)
-CX_K_CROWD = 6       # crypto: a crowd jump has at least this many traders
+CX_K_CROWD = 5       # crypto: a crowd jump has at least this many traders
 CX_TG_EDGES = [0, 1, CX_K_CROWD - 1, np.inf]
 CX_TG_LABELS = ["1", f"2-{CX_K_CROWD - 1}" if CX_K_CROWD > 3 else "2", f"{CX_K_CROWD}+"]
-CX_N_BINS = 8        # crypto: price bins of the usual-error baseline
+CX_N_BINS = 10       # crypto: price bins of the usual-error baseline
 CX_N_RESAMPLES = 150  # crypto: market resamples for the ranges
 CX_OUTCOME_Q = 0.6    # crypto: outcome threshold
-CX_MIN_TRADES = 50   # crypto markets need this many trades in their window (F9)
+CX_MIN_TRADES = 0    # crypto markets: no minimum number of trades (flat curve: the filter does nothing)
 # Pattern search (F9), from explore/r12_f9.py
-F9_STEP = 10         # minutes between the points of a path
-F9_BEFORE = 30       # minutes of path before the slot's close
+F9_STEP = 10         # minutes between the points of a path (straight curve: value kept)
+F9_BEFORE = 20       # minutes of path before the slot's close
 F9_AFTER = 120       # minutes of path after it
 F9_MIN_CHANGES = 3   # a path needs price changes in at least this many post-jump steps
 F9_HOURS_LEFT = 2    # a jump needs at least this many hours of the market's window left
-F9_RADIUS_PCT = 15   # match radius = this percentile of the surrogates' matrix profile
+F9_RADIUS_PCT = 15   # match radius = this percentile of the surrogates' matrix profile  (straight curve: value kept)
 F9_SAMPLE = 10**9    # no sampling: every path that passes the filters is used
 BASIS = "vwap"
 CATS = [  # first match wins
@@ -147,13 +148,13 @@ def load(events_dir="local_data/r02_events"):
 
 
 def share(df, n_boot=N_RESAMPLES, seed=0):
-    """Overshoot share = sum(overshoot)/sum(|dp|), 90% CI by resampling markets."""
+    """Overshoot share = sum(overshoot)/sum(|dp|), 95% range by resampling markets."""
     g = df.groupby("market")[["overshoot", "absdp"]].sum()
     o, d = g.overshoot.values, g.absdp.values
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, len(g), size=(n_boot, len(g)))
     bs = o[idx].sum(1) / d[idx].sum(1)
-    return o.sum() / d.sum(), np.percentile(bs, 5), np.percentile(bs, 95)
+    return o.sum() / d.sum(), np.percentile(bs, 2.5), np.percentile(bs, 97.5)
 
 
 def groupings(e):

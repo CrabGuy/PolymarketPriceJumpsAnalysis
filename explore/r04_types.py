@@ -14,7 +14,7 @@ relative to the market's scheduled lifetime (created_at to end_date), since 10 m
 a large share of a short market.
 
 Input: local_data/r03_big_moves_main.parquet, r03_tradable_main.parquet and the random
-sample in local_data/r03_events/1800/r*.parquet.
+sample in local_data/r03_events/<BAR>/r*.parquet.
 Usage: python explore/r04_types.py
 """
 import glob

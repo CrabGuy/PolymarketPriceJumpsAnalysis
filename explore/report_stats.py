@@ -6,7 +6,7 @@ shares on tables the rounds already produced).
      the moves are spread across markets.
   2. Who makes them: share of price jumps by number of distinct takers, money in the bar.
   3. How often the next trades undo most of a move, by number of takers.
-  4. Up/down crypto markets: how many big 1-minute moves and markets.
+  4. Up/down crypto markets: how many crypto price jumps and markets.
 
 Inputs: local_data/r02_events (all moves, both price bases), local_data/r03_big_moves_main,
 local_data/r03_tradable_main, local_data/r05/r05_ud_moves.parquet.
@@ -86,7 +86,7 @@ def main():
     # 4. up/down
     try:
         u = pd.read_parquet("local_data/r05/r05_ud_moves.parquet")
-        print(f"\nup/down: {len(u):,} big 1-min moves in {u.market.nunique():,} markets; "
+        print(f"\nup/down: {len(u):,} crypto price jumps in {u.market.nunique():,} markets; "
               f"by coin {u.asset.value_counts().to_dict()}; by length {u.dur.value_counts().to_dict()}")
     except Exception as ex:  # optional
         print("up/down table not read:", ex)

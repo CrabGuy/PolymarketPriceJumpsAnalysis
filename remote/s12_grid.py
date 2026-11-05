@@ -11,8 +11,9 @@ needed to apply any threshold, start/end cut, settle band and price clip locally
      EDGES the settle moment (the last slot whose last trade is inside [edge, 1 - edge], when
      the market's last slot is outside it; NaN otherwise)
   g  the number of gaps between consecutive slots with trades, by gap length in slots
-  x  for the slot lengths in NEXT_SLOTS (CX_NEXT_SLOTS) and moves of at least NEXT_MIN_PTS:
-     the first NEXT_N trades after the slot's close within NEXT_MAX seconds (dt, YES, $)
+  x  for every slot length and the moves of at least NEXT_MIN_PTS: the first NEXT_N trades
+     after the slot's close within next_max seconds (dt, YES, $); they give the reversal share
+     (the curve of the slot length) and the next-trades price
 
 Writes tmp/grid/<mode>/{j,r,m,g,x}<k>.parquet.
 Usage: python s12_grid.py <events|cx> <bucket> [<bucket> ...]
@@ -35,9 +36,9 @@ NEXT_N = 16
 NEXT_MIN_PTS = 0.08
 MODES = {
     "events": dict(src="tmp/buckets", slots=(60, 120, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200),
-                   next_slots=(900, 1200, 1800, 2700, 3600), next_max=3 * 3600),
+                   next_max=3 * 3600),
     "cx": dict(src="tmp/buckets_cx", slots=(15, 30, 60, 120, 300),
-               next_slots=(30, 60, 120), next_max=900),
+               next_max=900),
 }
 
 
@@ -113,8 +114,7 @@ def process(mode, k):
         out["r"].append(r)
         out["g"].append(g)
         out["m"].append(market_times(b, bar_s))
-        if bar_s in cfg["next_slots"]:
-            out["x"].append(next_trades(d, j, cfg["next_max"]))
+        out["x"].append(next_trades(d, j, cfg["next_max"]))
     return {c: pd.concat(v, ignore_index=True) for c, v in out.items()}
 
 

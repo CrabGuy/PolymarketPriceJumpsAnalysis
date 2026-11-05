@@ -30,11 +30,12 @@ import pandas as pd
 import stumpy
 
 sys.path.insert(0, "explore")
-from r02_persistence import (CLIP, F9_AFTER, F9_BEFORE, F9_HOURS_LEFT, F9_MIN_CHANGES,  # noqa: E402
+from r02_persistence import (BAR, CLIP, F9_AFTER, F9_BEFORE, F9_HOURS_LEFT, F9_MIN_CHANGES,  # noqa: E402
                              F9_RADIUS_PCT, F9_SAMPLE, F9_STEP)
 
 M = (F9_BEFORE + F9_AFTER) // F9_STEP + 1     # points per path
 MOVE_AT = F9_BEFORE // F9_STEP               # index of the slot's close
+PRE_AT = max(MOVE_AT - BAR // 60 // F9_STEP, 0)  # index of the slot's start (the price before the jump)
 N_SAMPLE = F9_SAMPLE
 N_MOTIFS = 8
 SEED = 0
@@ -126,11 +127,11 @@ def load(n_sample):
 
 def describe(L):
     """Simple shape numbers for a set of oriented windows (log-odds)."""
-    pre, mv = L[:, MOVE_AT - 3], L[:, MOVE_AT]
+    pre, mv = L[:, PRE_AT], L[:, MOVE_AT]
     size = mv - pre
     keep_30m = (L[:, MOVE_AT + 30 // F9_STEP] - pre) / size
     keep_4h = (L[:, -1] - pre) / size
-    run_up = (L[:, MOVE_AT - 3] - L[:, 0]) / size
+    run_up = (L[:, PRE_AT] - L[:, 0]) / size
     return {"kept after 30 min": np.median(keep_30m), "kept after 4 h": np.median(keep_4h),
             "run-up before (share of move)": np.median(run_up)}
 

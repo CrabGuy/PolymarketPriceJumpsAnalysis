@@ -1,7 +1,7 @@
 """
 Round 12: the elbow of every parameter of the pattern search (F9), from 1-minute price paths
 (remote/s4_paths.py finemoves: each jump's price at every minute from 60 min before to 8 h
-after its slot's close; copied to local_data/r12/fine/).
+after its slot's close; copied to local_data/r14/fine/).
 
 Part A (paths), curves and knees:
   step     mean |error| (points) of a path sampled every a minutes (each value held until
@@ -30,9 +30,9 @@ import pandas as pd
 
 sys.path.insert(0, "explore")
 from r02_persistence import EDGE, F9_AFTER, F9_BEFORE, F9_STEP  # noqa: E402
-from elbow import knee  # noqa: E402
+from elbow import find  # noqa: E402
 
-FINE = "local_data/r12/fine"
+FINE = "local_data/r14/fine"
 OUT = "local_data/r12"
 ZERO = 60                     # index of the slot's close in the 1-minute paths (offsets -60 .. 480)
 
@@ -63,10 +63,10 @@ def part_a():
     rows, knees = [], []
 
     def add(name, x, y, what):
-        k = knee(np.asarray(x, float), np.asarray(y, float))
+        k, kind = find(np.asarray(x, float), np.asarray(y, float))
         rows.append(pd.DataFrame({"curve": name, "x": x, "y": y}))
-        knees.append({"curve": name, "knee": x[k], "what": what})
-        print(f"{name:8s} knee {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
+        knees.append({"curve": name, "knee": x[k], "kind": kind, "what": what})
+        print(f"{name:8s} {kind} {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
 
     A = np.array([1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30])
     add("step", A, np.array([np.nanmean(np.abs(held(P, a) - P)) * 100 for a in A]), "error of the sampled path, points")
@@ -109,10 +109,10 @@ def part_b():
     rows, knees = [], []
 
     def add(name, x, y, what):
-        k = knee(np.asarray(x, float), np.asarray(y, float))
+        k, kind = find(np.asarray(x, float), np.asarray(y, float))
         rows.append(pd.DataFrame({"curve": name, "x": x, "y": y}))
-        knees.append({"curve": name, "knee": x[k], "what": what})
-        print(f"{name:8s} knee {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
+        knees.append({"curve": name, "knee": x[k], "kind": kind, "what": what})
+        print(f"{name:8s} {kind} {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
 
     p, L = rm.load(rm.N_SAMPLE)
     groups = pd.factorize(p.event.fillna(p.market.astype(str)))[0]

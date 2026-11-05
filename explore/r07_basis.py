@@ -5,7 +5,7 @@ Question: one big trade dominates a bar's VWAP, so is a single trader's
 "move" an artefact of volume weighting? Within a bar the VWAP weighs each trade by its
 size; across bars the weights don't interact. To check, moves are re-measured on the
 equal-weighted MEAN trade price of each bar (remote/s7_events.py mode "basis",
-local_data/r07/basis/) and compared with the VWAP basis (local_data/r03_events/1800/), with
+local_data/r07/basis/) and compared with the VWAP basis (local_data/r03_events/{BAR}/), with
 the same method on both:
   - calibration baseline from random active bars on the same basis, pooled, 5-point bins
   - overshoot share (ratio of sums) at the bar close and at the next 8 trades
@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import CLIP, MIN_PTS, N_BINS, N_RESAMPLES, TG_EDGES, TG_LABELS, outcomes, sigmoid  # noqa: E402
+from r02_persistence import BAR, CLIP, MIN_PTS, N_BINS, N_RESAMPLES, TG_EDGES, TG_LABELS, outcomes, sigmoid  # noqa: E402
 
 BINS = np.linspace(0, 1, N_BINS + 1)
 
@@ -57,13 +57,13 @@ def share(x, col, n=N_RESAMPLES):
     a, b = g.a.values, g.b.values
     i = np.random.default_rng(0).integers(0, len(g), size=(n, len(g)))
     bs = a[i].sum(1) / b[i].sum(1)
-    return a.sum() / b.sum(), np.percentile(bs, 5), np.percentile(bs, 95)
+    return a.sum() / b.sum(), np.percentile(bs, 2.5), np.percentile(bs, 97.5)
 
 
 def main():
     rows = []
-    for name, src, pc, ec in (("VWAP (volume-weighted)", "local_data/r03_events/1800/", "vwap", "entry_vwap"),
-                              ("plain mean of trades", "local_data/r07/basis/", "price", "entry_mean")):
+    for name, src, pc, ec in (("VWAP (volume-weighted)", f"local_data/r03_events/{BAR}/", "vwap", "entry_vwap"),
+                              ("plain mean of trades", "local_data/r14/basis/", "price", "entry_mean")):
         e = load(src, pc, ec)
         for tg, x in [("all", e)] + list(e.groupby("tg")):
             for col, when in (("oc", "bar close"), ("oe", "next trades")):

@@ -34,7 +34,9 @@ sys.path.insert(0, "explore")
 from report_style import (BASE, MUTED, SUBTLE, TEXT, HL_MED, LOVE, GOLD, ROSE, PINE, FOAM, IRIS,  # noqa: E402
                           TG, TG_LABEL, UP, DOWN)
 from r02_persistence import (BAR, CROWD, EDGE, FEW, K_CROWD, LIFE_CUT_END, LIFE_CUT_START, MONEY_X,  # noqa: E402
-                             TG_EDGES, TG_LABELS, F9_BEFORE, F9_STEP, CX_TG_LABELS, random_slots, share)
+                             TG_EDGES, TG_LABELS, F9_BEFORE, F9_STEP, CX_SLOT, CX_TG_LABELS, CONTROL_BINS, CX_MOVED, OFFSET_LO, OFFSET_HI,
+                             random_slots, share)
+SLOT = BAR // 60      # slot length in minutes, for labels
 
 OUT = "report/plots/"
 LD = "local_data/"
@@ -76,7 +78,7 @@ def date_axis(ax):
 
 
 def example_bars(s):
-    # the 30-minute slots the price jumps are found on (as remote/s2_events.py): dollar-weighted
+    # the slot slots the price jumps are found on (as remote/s2_events.py): dollar-weighted
     # average price of the slot's trades, stamped at the slot's end
     s = s.assign(bar=s.ts // BAR, pv=s.yes * s.usd_amount)
     g = s.groupby("bar").agg(pv=("pv", "sum"), usd=("usd_amount", "sum"), last=("yes", "last"))
@@ -91,14 +93,14 @@ NEWS = [("2025-02-13 17:00", "13 Feb: Tim Cook teases\n\"the newest member\nof t
 
 
 def ex1_example():
-    """The example market: the average price of every 30-minute slot with trades, with its
+    """The example market: the average price of every slot slot with trades, with its
     price jumps (from one slot to the next) in the accent colour and the news dates."""
     s, b = example_data()
     bars = example_bars(s)
     fig, ax = plt.subplots(figsize=(9.5, 4.6))
     ax.plot(bars.t, bars.vwap, color=HL_MED, lw=0.8, zorder=1)
     ax.scatter(bars.t, bars.vwap, s=14, color=IRIS, lw=0, zorder=2,
-               label="30-minute average price (one dot per 30 minutes with trades)")
+               label=f"{SLOT}-minute average price (one dot per {SLOT} minutes with trades)")
     bars["t0"], bars["v0"] = bars.t.shift(), bars.vwap.shift()
     for r in b.merge(bars[["t", "t0", "v0"]], on="t").itertuples():
         ax.plot([r.t0, r.t], [r.v0, r.p_close * 100], color=LOVE, lw=2.4, zorder=3)
@@ -146,7 +148,7 @@ def ex2_overshoot():
                 xy=(sweep.t.iloc[0], sweep.yes.max()), xytext=(t0 + pd.Timedelta(hours=1), 88),
                 fontsize=9, color=LOVE, arrowprops=dict(arrowstyle="->", color=LOVE, lw=0.8))
     ax.text(pd.Timestamp("2025-02-15 11:30"), post + 5,
-            f"price jump: {pre:.0f}% → {post:.0f}%\n(30-minute averages; no news found)", fontsize=9, color=LOVE)
+            f"price jump: {pre:.0f}% → {post:.0f}%\n({SLOT}-minute averages; no news found)", fontsize=9, color=LOVE)
     ax.text(pd.Timestamp("2025-02-15 19:30"), eve + 6,
             f"evening: other traders sell it back to {eve:.0f}%\n(Monday morning: {mon:.0f}%)", fontsize=9, color=TEXT)
     ax.axhline(99.4, color=PINE, lw=2.5)
@@ -190,7 +192,7 @@ def bg_pipeline():
     mk = pd.read_parquet(LD + "r03_big_moves_main.parquet", columns=["market"]).market
     steps = [("766M trades\n32 GB\n(server)", MUTED),
              ("regroup by market\n32 buckets,\none pass, ~30 min", MUTED),
-             ("30-min slots\nper market\n(price, $, traders)", IRIS),
+             (f"{SLOT}-min slots\nper market\n(price, $, traders)", IRIS),
              (f"price jumps\n{len(mk) / 1e6:.2f}M\nin {mk.nunique() / 1e3:.0f}k markets", IRIS),
              ("compare with the\nfinal outcome\n= overshoot", LOVE),
              ("small tables to the PC:\nstatistics, plots,\nmatrix profiles", PINE)]
@@ -344,7 +346,7 @@ def f2_money():
     ax.set_xticks(np.arange(2), [f"under ${MONEY_X:,.0f}", f"${MONEY_X:,.0f} or more"])
     for tg in TGS:
         print(f"f2_money {tg}: " + ", ".join(f"{x:.3f}" for x in v[tg]))
-    ax.set_xlabel("money traded in the jump's 30 minutes")
+    ax.set_xlabel(f"money traded in the jump's {SLOT} minutes")
     ax.set_ylabel("overshoot, % of the jump")
     pct(ax)
     ax.legend(ncol=3, loc="upper left", fontsize=9)
@@ -449,7 +451,7 @@ def f2_average(d, P):
     ax.set_xlim(x[0], x[-1] + 20)
     ax.set_ylim(-10, 125)
     pct(ax)
-    ax.set_xlabel("minutes from the end of the jump's 30-minute slot")
+    ax.set_xlabel(f"minutes from the end of the jump's {SLOT}-minute slot")
     ax.set_ylabel("share of the jump still in the price")
     ax.set_title("The average price jump (markets that traded again within 10 minutes)")
     ax.legend(loc="lower right", bbox_to_anchor=(0.88, 0.06), fontsize=9)
@@ -458,10 +460,10 @@ def f2_average(d, P):
 
 def f2_two_moves(d, P):
     x = (np.arange(P.shape[1]) - F9_BEFORE // F9_STEP) * F9_STEP
-    picks = [(518038, 1737451800, "One trader, $244: undone within two minutes",
-              "Will Aryna Sabalenka win the Australian Open?\n21 Jan 2025, 09:30 UTC", TG["1"]),
-             (1006468, 1769765400, "88 traders, $27.4k: the jump held",
-              "Will Carlos Alcaraz win the 2026 Australian Open?\n30 Jan 2026, 09:30 UTC", TG[CROWD])]
+    picks = [(518038, 1737451200, "One trader, $244: undone within two minutes",
+              "Will Aryna Sabalenka win the Australian Open?\n21 Jan 2025, 09:20 UTC", TG["1"]),
+             (542539, 1755872400, "147 traders, $141.8k: the jump held",
+              "No change in Fed interest rates after the\nSeptember 2025 meeting? 22 Aug 2025, 14:20 UTC", TG[CROWD])]
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.2))
     for ax, (m, tc, title, sub, col) in zip(axes, picks):
         i = np.flatnonzero((d.market.values == m) & (d.t_close.values == tc))[0]
@@ -505,17 +507,17 @@ def f3_decay():
 # ---------------------------------------------------------------- F4
 
 def f4_versions():
-    """F4: overshoot by what the other candidates did in the move's 30 minutes (neg-risk events),
+    """F4: overshoot by what the other candidates did in the move's slot (neg-risk events),
     at the close and at the next trades."""
     r = pd.read_csv(LD + "r07/sib_versions.csv")
     r = r[r.neg_risk == 1]
     groups = ["isolated", "not offset", "partly offset", "offset"]
-    labels = ["no other\ncandidate traded", "others traded,\nno offset", "partly offset\n(25-75%)", "offset\n(75%+)"]
+    labels = ["no other\ncandidate traded", "others traded,\nno offset", f"partly offset\n({OFFSET_LO:.0%}-{OFFSET_HI:.0%})", f"offset\n({OFFSET_HI:.0%}+)"]
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
     for ax, tg in zip(axes, ("1", CROWD)):
         x = np.arange(4)
         s = r[(r.version == "all trades") & (r.takers.astype(str) == tg)].set_index("group").reindex(groups)
-        ax.bar(x, s.close * 100, 0.55, color=TG[tg], label="at the end of the 30 minutes")
+        ax.bar(x, s.close * 100, 0.55, color=TG[tg], label=f"at the end of the {SLOT} minutes")
         ax.errorbar(x, s.close * 100, yerr=[(s.close - s.lo) * 100, (s.hi - s.close) * 100], fmt="none", ecolor=TEXT, lw=1)
         ax.scatter(x, s["next trades"] * 100, marker="D", s=55, color=SUBTLE, zorder=3, label="at the next trades")
         for i, n in enumerate(s.moves):
@@ -553,7 +555,7 @@ def f5_fade():
         ax.set_ylim(-11, 21)
     for i, sp in enumerate(t["spread (cents)"]):
         a1.text(i, 18.5, f"spread {sp:.1f}¢", ha="center", fontsize=8.5, color=SUBTLE)
-    a2.set_xlabel("money traded in the jump's 30 minutes")
+    a2.set_xlabel(f"money traded in the jump's {SLOT} minutes")
     a1.set_ylabel("return per $1 bet against the jump (cents),\nafter the spread, extremes trimmed")
     fig.suptitle("Betting against price jumps: loses after lone pushes, pays after crowd and big-money jumps",
                  fontweight="bold", color=TEXT, fontsize=11.5)
@@ -627,7 +629,7 @@ def f8_close_next():
                     arrowprops=dict(arrowstyle="->", color=MUTED, lw=1.5))
         ax.scatter(s.close * 100, yi, s=70, color=CX_TG[str(s.takers)], zorder=3)
         ax.scatter(s.next * 100, yi, s=60, marker="D", color=SUBTLE, zorder=3)
-    ax.scatter([], [], s=70, color=MUTED, label="at the end of the 1-minute bar (colour = traders)")
+    ax.scatter([], [], s=70, color=MUTED, label=f"at the end of the {CX_SLOT}-second slot (colour = traders)")
     ax.scatter([], [], s=60, marker="D", color=SUBTLE, label="at the next trades (1-2 s later for crowds)")
     ax.axvline(0, color=TEXT, lw=1)
     ax.set_yticks(y, r.lab, fontsize=9)
@@ -635,8 +637,8 @@ def f8_close_next():
     ax.grid(axis="y", visible=False)
     ax.grid(axis="x", visible=True)
     ax.set_xlabel("overshoot, % of the jump (negative = the price kept going)")
-    ax.legend(loc="upper left", fontsize=8.5)
-    ax.set_title("Crypto up/down: within the minute crowds run on,\nbut the next trades have already caught up")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=2, fontsize=8.5)
+    ax.set_title("Crypto up/down: within the slot crowds run on,\nbut the next trades have already caught up")
     save(fig, "f8_close-vs-next")
 
 
@@ -670,7 +672,7 @@ def sp_groups():
     for ax, cat in zip(axes, ("sports", "esports")):
         s = t[t.cat == cat].set_index("tg").loc[list(TGS)]
         x = np.arange(3)
-        ax.bar(x, s.overshoot * 100, 0.55, color=[TG[k] for k in TGS], label="at the end of the 30 minutes")
+        ax.bar(x, s.overshoot * 100, 0.55, color=[TG[k] for k in TGS], label=f"at the end of the {SLOT} minutes")
         ax.errorbar(x, s.overshoot * 100, yerr=[(s.overshoot - s.lo) * 100, (s.hi - s.overshoot) * 100],
                     fmt="none", ecolor=TEXT, lw=1)
         ax.scatter(x, s.next_trades * 100, marker="D", s=60, color=SUBTLE, zorder=3, label="at the next trades")
@@ -694,7 +696,7 @@ def sp_sport():
     t = t[(t.sport != "other") & (t.moves >= 1500)].sort_values("overshoot")
     fig, ax = plt.subplots(figsize=(8, 5))
     y = np.arange(len(t))
-    ax.barh(y + 0.18, t.overshoot * 100, 0.34, color=MUTED, label="end of the 30 minutes")
+    ax.barh(y + 0.18, t.overshoot * 100, 0.34, color=MUTED, label=f"end of the {SLOT} minutes")
     ax.barh(y - 0.18, t.next_trades * 100, 0.34, color=FOAM, label="next trades")
     ax.set_yticks(y, [f"{s}  ({n / 1000:.0f}k)" for s, n in zip(t.sport, t.moves)], fontsize=9)
     ax.axvline(0, color=TEXT, lw=1)
@@ -743,16 +745,30 @@ def count_colours(labels):
     return [group(k) for k in labels]
 
 
-def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False):
-    """One parameter's curve with its knee (the value used), marked by a circle and a line."""
+KIND_TEXT = {"knee": "knee = {:g}", "edge": "knee at the end: {:g}", "flat": "flat, no effect: {}",
+             "peak": "peak, no knee: {}", "valley": "lowest point = {:g}", "straight": "straight, no knee: {}",
+             "knee before the valley": "knee = {:g} (before the curve turns up)",
+             "knee before the peak": "knee = {:g} (before the curve turns down)"}
+
+
+def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False, kind="knee", used=None):
+    """One parameter's curve with the value used, marked by a circle and a line; a curve without a
+    proper knee (elbow.find) says so, with the value kept (`used`: a number, or "dropped")."""
     x, y = np.asarray(x, float), np.asarray(y, float)
+    if used == "dropped":
+        label, k = KIND_TEXT[kind].format("dropped"), None
+    elif used is not None:
+        label, k = KIND_TEXT[kind].format(f"{used:g} kept"), used
+    else:
+        label = KIND_TEXT[kind].format(k if kind.startswith("knee") or kind in ("edge", "valley") else f"{k:g} kept")
     ax.plot(x, y, "-", color=IRIS, lw=2)
     ax.plot(x, y, "o", color=IRIS, ms=3.2)
-    ky = y[np.argmin(np.abs(x - k))]
-    ax.plot([k], [ky], "o", ms=11, mfc="none", mec=ROSE, mew=2.2)
-    ax.axvline(k, color=TEXT, lw=1, ls="--")
+    if k is not None:
+        ky = y[np.argmin(np.abs(x - k))]
+        ax.plot([k], [ky], "o", ms=11, mfc="none", mec=ROSE if kind.startswith("knee") or kind in ("edge", "valley") else MUTED, mew=2.2)
+        ax.axvline(k, color=TEXT, lw=1, ls="--")
     rising = y[-1] > y[0]
-    ax.text(0.97, 0.05 if rising else 0.95, f"knee = {k:g}", transform=ax.transAxes, ha="right",
+    ax.text(0.97, 0.05 if rising else 0.95, label, transform=ax.transAxes, ha="right",
             va="bottom" if rising else "top", fontsize=8.5, color=TEXT,
             bbox=dict(boxstyle="round,pad=0.25", fc=BASE, ec="none", alpha=0.9))
     if logx:
@@ -768,13 +784,13 @@ def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False):
 
 JUMPS_K = "price jumps (thousands)"
 DEFINITION = [  # curve, title, x label, y label, y scale, y in %
-    ("slot", "Slot length", "minutes", JUMPS_K, 1e-3, False),
+    ("slot", "Slot length", "minutes", "jumps undone by the next trades", 100, True),
     ("theta", "Jump threshold", "points", JUMPS_K, 1e-3, False),
     ("cut_start", "Cut at the start of life", "% of the life", JUMPS_K, 1e-3, False),
     ("cut_end", "Cut at the end of life", "% of the life", JUMPS_K, 1e-3, False),
     ("edge", "Settle band", "points from 0% or 100%", JUMPS_K, 1e-3, False),
     ("clip", "Price clip", "points from 0% or 100%", JUMPS_K, 1e-3, False),
-    ("n_next", "Next trades: how many", "trades averaged", "overshoot at the next trades", 100, True),
+    ("n_next", "Next trades: how many", "trades averaged", "overshoot at the next trades", 1, True),
     ("t_next", "Next trades: how long", "minutes allowed", "jumps with next trades", 100, True),
 ]
 
@@ -784,14 +800,16 @@ def definition_panels(mode, name, title):
     fig, axes = plt.subplots(2, 4, figsize=(14, 6.6))
     for ax, (cv, t, xl, yl, ys, yp) in zip(axes.flat, DEFINITION):
         d = c[c.curve == cv]
-        elbow_panel(ax, d.x, d.y * ys, d.knee.iloc[0], t, xl, yl, yp)
+        kind = d.kind.iloc[0]
+        elbow_panel(ax, d.x, d.y * ys, d.knee.iloc[0], t, xl, yl, yp, kind=kind,
+                    used="dropped" if kind == "flat" and d.knee.iloc[0] == 0 else None)
     fig.suptitle(title, fontsize=13, weight="bold", color=TEXT)
     save(fig, name)
 
 
 def m_definition():
-    definition_panels("events", "m_definition", "What a price jump is: each parameter at the knee of its curve, "
-                      "the others at their knees")
+    definition_panels("events", "m_definition", "What a price jump is: each parameter from its curve, "
+                      "the others at their values")
 
 
 def m_crypto():
@@ -804,15 +822,17 @@ def m_grid():
                                                ("cut_edge", "edge", "cut_end", "settle band, points", "cut at the end, % of life"))):
         g = pd.read_csv(LD + f"r12/full/events_grid_{f}.csv")
         m = g.pivot(index=row, columns=col, values="jumps")
+        rv = g.pivot(index=row, columns=col, values="reversal") if "reversal" in g else m   # slot: reversal share
         im = ax.imshow(np.log10(m.values), aspect="auto", origin="lower", cmap="Purples",
                        extent=[-0.5, m.shape[1] - 0.5, -0.5, m.shape[0] - 0.5])
         kc, kr = [], []
         for i, (_, r) in enumerate(m.iterrows()):          # knee of each row: the best column for that row
             kc.append(knee_idx(m.columns.values, r.values))
         for j in range(m.shape[1]):                         # knee of each column: the best row for that column
-            kr.append(knee_idx(m.index.values, m.iloc[:, j].values))
+            kr.append(knee_idx(m.index.values, rv.iloc[:, j].values))
         ax.plot(kc, np.arange(m.shape[0]), "o-", color=ROSE, lw=1.8, ms=4, label=f"knee of {cl.split(',')[0]} for each row")
-        ax.plot(np.arange(m.shape[1]), kr, "s--", color=PINE, lw=1.4, ms=3, label=f"knee of {rl.split(',')[0]} for each column")
+        ax.plot(np.arange(m.shape[1]), kr, "s--", color=PINE, lw=1.4, ms=3,
+                label=f"knee of {rl.split(',')[0]} for each column" + (" (reversal share)" if row == "slot" else ""))
         step = max(1, m.shape[1] // 8)
         ax.set_xticks(np.arange(0, m.shape[1], step), [f"{v:g}" for v in m.columns.values[::step]], fontsize=8)
         ax.set_yticks(np.arange(m.shape[0]), [f"{v:g}" for v in m.index.values], fontsize=8)
@@ -827,8 +847,8 @@ def m_grid():
 
 
 def knee_idx(x, y):
-    from elbow import knee
-    return knee(np.asarray(x, float), np.asarray(y, float))
+    from elbow import find
+    return find(np.asarray(x, float), np.asarray(y, float))[0]
 
 
 PARAMS = [  # curve, title, x label, y label, y in %, log x (display only: every knee is found on a linear axis)
@@ -865,31 +885,25 @@ PARAMS = [  # curve, title, x label, y label, y in %, log x (display only: every
     ("cx_points", "F9: points per crypto market", "points", "error, points", False, False),
     ("cx_min_trades", "F9: crypto markets with at least n trades", "n", "markets", False, False),
 ]
-NOT_USED = {"band": "flat: no band is used"}
+USED = {"band": "dropped", "cx_min_trades": "dropped", "control_bins": CONTROL_BINS, "moved": CX_MOVED}   # no knee
 
 
 def m_params():
     c = pd.read_csv(LD + "r12/params_curves_all.csv")
-    kn = pd.read_csv(LD + "r12/params_knees_all.csv").set_index("curve").knee
+    kk = pd.read_csv(LD + "r12/params_knees_all.csv").set_index("curve")
+    kn = kk.knee
     todo = [p for p in PARAMS if p[0] in kn.index]
     rows = int(np.ceil(len(todo) / 4))
     fig, axes = plt.subplots(rows, 4, figsize=(14, 3.0 * rows))
     for ax, (cv, t, xl, yl, yp, lg) in zip(axes.flat, todo):
         d = c[c.curve == cv]
-        if cv in NOT_USED:
-            ax.plot(d.x, d.y, "o-", color=IRIS, lw=2, ms=3.2)
-            ax.set_ylim(0, d.y.max() * 1.3)
-            ax.text(0.97, 0.95, NOT_USED[cv], transform=ax.transAxes, ha="right", va="top", fontsize=8.5, color=TEXT)
-            ax.set_title(t, fontsize=10)
-            ax.set_xlabel(xl, fontsize=8.5)
-            ax.set_ylabel(yl, fontsize=8.5)
-            ax.tick_params(labelsize=8)
-            continue
-        elbow_panel(ax, d.x, d.y, kn[cv], t, xl, yl, yp, lg)
+        elbow_panel(ax, d.x, d.y, kn[cv], t, xl, yl, yp, lg, kind=kk.kind[cv], used=USED.get(cv))
     for ax in axes.flat[len(todo):]:
         ax.axis("off")
-    fig.suptitle("Every other parameter, at the knee of its curve", fontsize=13, weight="bold", color=TEXT, y=1.005)
-    save(fig, "m_params")
+    fig.suptitle("Every other parameter, from its curve", fontsize=13, weight="bold", color=TEXT)
+    fig.tight_layout(rect=(0, 0, 1, 0.985))      # room for the title (save() would undo it)
+    fig.savefig(OUT + "m_params.png")
+    plt.close(fig)
 
 
 def f2_counts():
@@ -911,7 +925,7 @@ def f2_counts():
     pct(a2)
     a2.set_ylabel("overshoot, % of the jump")
     a2.set_xticks(x, t.traders)
-    a2.set_xlabel("number of different traders who took liquidity in the jump's 30 minutes")
+    a2.set_xlabel(f"number of different traders who took liquidity in the jump's {SLOT} minutes")
     save(fig, "f2_trader-counts")
 
 
@@ -953,7 +967,7 @@ def f2_accuracy():
     ax.set_xlim(-0.5, len(a) + 1.6)
     ax.set_ylim(35, 66)
     pct(ax)
-    ax.set_xlabel("number of different traders in the jump's 30 minutes")
+    ax.set_xlabel(f"number of different traders in the jump's {SLOT} minutes")
     ax.set_ylabel("jumps that pointed toward\nthe final outcome, %")
     ax.set_title("Jumps point the right way more often than the old price implied, less than the new one")
     save(fig, "f2_accuracy")

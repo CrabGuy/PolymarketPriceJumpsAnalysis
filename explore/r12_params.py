@@ -1,7 +1,8 @@
 """
 Round 12: the elbow (knee) of every remaining parameter, on the jumps defined by the joint
 search (explore/r12_joint.py). Each curve is drawn over the range given below; the knee is
-the Kneedle point (explore/elbow.knee). Run after the main pipeline (r03 to r10).
+the Kneedle point after the checks of explore/elbow.find (flat, peak, straight, edge are
+recorded as the curve's kind). Run after the main pipeline (r03 to r10).
 
   statistics
     sample      spread of the overshoot over 20 redraws of the random-slot set,
@@ -44,9 +45,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import MARKETS as MARKETS_FILE, outcomes  # noqa: E402
+from r02_persistence import BAR, MARKETS as MARKETS_FILE, outcomes  # noqa: E402
 from r03_robustness import cat_baseline, overshoot_cat  # noqa: E402
-from elbow import knee  # noqa: E402
+from elbow import find  # noqa: E402
 
 OUT = "local_data/r12"
 MIN_N = 1000          # a point of a share-of-jumps curve needs at least this many jumps
@@ -58,7 +59,7 @@ def big():
 
 
 def randoms():
-    r = pd.concat([pd.read_parquet(f) for f in glob.glob("local_data/r03_events/1800/r*.parquet")], ignore_index=True)
+    r = pd.concat([pd.read_parquet(f) for f in glob.glob(f"local_data/r03_events/{BAR}/r*.parquet")], ignore_index=True)
     r["outcome"] = r.market.map(outcomes())
     r = r[r.outcome.notna()].copy()
     tags = pd.read_csv("local_data/market_tags.csv", dtype=str)
@@ -341,12 +342,12 @@ def main(names):
         xx = x                     # one rule for every curve: a linear axis
         if fit_sqrt:               # Monte Carlo noise falls as c / sqrt(M): take the knee of the fitted curve
             c = np.sum(y / np.sqrt(x)) / np.sum(1 / x)
-            k = knee(xx, c / np.sqrt(np.asarray(x, float)))
+            k, kind = find(xx, c / np.sqrt(np.asarray(x, float)))
         else:
-            k = knee(xx, y)
+            k, kind = find(xx, y)
         rows.append(pd.DataFrame({"curve": name, "x": x, "y": y}))
-        knees.append({"curve": name, "knee": x[k], "what": what})
-        print(f"{name:14s} knee {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
+        knees.append({"curve": name, "knee": x[k], "kind": kind, "what": what})
+        print(f"{name:14s} {kind} {x[k]:g}; " + ", ".join(f"{a:g}:{v:.4g}" for a, v in zip(x, y)), flush=True)
 
     todo = set(names) or {"stats", "groups", "f2", "f4", "f5", "f6", "f8", "f10", "other", "cx"}
     b = big()
@@ -376,7 +377,7 @@ def main(names):
         m = micro()
         x, y = c_min_slots(m)
         add("min_slots", x, y, "markets kept")
-        add("vr_lag", *c_vr_lag(m, x[knee(x, y)]), "median variance ratio")
+        add("vr_lag", *c_vr_lag(m, x[find(x, y)[0]]), "median variance ratio")
         add("spread_win", *c_spread_win(m), "windows with both sides, share", log_x=True)
         add("tag_min", *c_tag_min(), "tags kept", log_x=True)
         add("tag_min_jumps", *c_tag_min_jumps(b), "tags kept (markets with jumps)", log_x=True)
