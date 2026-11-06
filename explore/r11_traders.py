@@ -14,8 +14,12 @@ Input: local_data/r03_big_moves_main.parquet (explore/r03_robustness.py), the ma
             (p_close for up jumps, 1 - p_close for down jumps) and if the price before it were
             right (same with p_pre); per trader group and per exact number of traders
 
-Outputs local_data/r11_traders.csv, r11_giveback.csv, r11_accuracy.csv.
-Usage: python explore/r11_traders.py
+  curve     the same next-trades give-back of single-trader jumps as a smooth line (kernel
+            density) instead of 10-point bins
+
+Outputs local_data/r11_traders.csv, r11_giveback.csv, r11_accuracy.csv;
+with "curve" only local_data/r11_giveback_curve.csv.
+Usage: python explore/r11_traders.py [curve]
 """
 import sys
 
@@ -75,8 +79,25 @@ def accuracy(b):
     return pd.DataFrame(rows)
 
 
+def giveback_curve(b):
+    """Smooth distribution (Gaussian kernel density) of the share given back by the next
+    trades, single-trader jumps, on a 1-point grid from -100% to 200%. 'density' is the % of
+    jumps per percentage point of give-back; 'below' is the % of jumps at or under each value."""
+    from scipy.stats import gaussian_kde
+    s = b[b.takers == 1]
+    g = ((s.p_close - s.entry_vwap) / (s.p_close - s.y_pre)).dropna().values
+    x = np.round(np.arange(-1, 2.0001, 0.01), 2)
+    kde = gaussian_kde(g[(g > -3) & (g < 4)], bw_method=0.03)
+    out = pd.DataFrame({"giveback": x, "density": kde(x), "below": [np.mean(g <= v) * 100 for v in x]})
+    print(f"curve: {len(g):,} jumps, {np.mean(g < -1):.1%} below -100%, {np.mean(g > 2):.1%} above 200%")
+    return out
+
+
 def main():
     b = pd.read_parquet("local_data/r03_big_moves_main.parquet")
+    if sys.argv[1:] == ["curve"]:
+        giveback_curve(b).to_csv("local_data/r11_giveback_curve.csv", index=False)
+        return
     pd.set_option("display.width", 200)
     t = by_count(b)
     print(t.round(3).to_string(index=False))

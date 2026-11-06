@@ -949,6 +949,27 @@ def f3_giveback():
     save(fig, "f3_giveback")
 
 
+def f3_giveback_curve():
+    c = pd.read_csv(LD + "r11_giveback_curve.csv")
+    x, y = c.giveback.values * 100, c.density.values
+    fig, ax = plt.subplots(figsize=(10, 4.3))
+    ax.fill_between(x, y, color=TG["1"], alpha=0.25, lw=0)
+    ax.plot(x, y, color=TG["1"], lw=2.2)
+    for v in (0, 100):
+        ax.axvline(v, color=SUBTLE, lw=1, ls=":")
+    top = y.max() * 1.02
+    ax.text(-4, top, "the next trades\nwent further", ha="right", va="top", fontsize=8.5, color=SUBTLE)
+    ax.text(4, top, "the next trades kept\nthe jump as it was", ha="left", va="top", fontsize=8.5, color=SUBTLE)
+    ax.text(104, top * 0.45, "gave back all of it\nor more", ha="left", va="top", fontsize=8.5, color=SUBTLE)
+    ax.set_xlim(-100, 200)
+    ax.set_ylim(0, top * 1.05)
+    pct(ax, "x")
+    ax.set_xlabel("share of the jump the next trades gave back")
+    ax.set_ylabel("% of single-trader jumps\nper point of give-back")
+    ax.set_title("Single-trader jumps: how much the next trades gave back (smoothed)")
+    save(fig, "f3_giveback-curve")
+
+
 def f2_accuracy():
     a = pd.read_csv(LD + "r11_accuracy.csv", dtype={"group": str})
     a = a[a.by == "k"]
@@ -981,7 +1002,7 @@ ALL = {"ex1": ex1_example, "ex2": ex2_overshoot, "spikes": bg_spikes, "pipeline"
        "sp_groups": sp_groups, "sp_sport": sp_sport, "f4_versions": f4_versions,
        "f10_reaction": f10_reaction, "m_definition": m_definition,
        "m_crypto": m_crypto, "m_grid": m_grid, "m_params": m_params, "f2_counts": f2_counts,
-       "f3_giveback": f3_giveback, "f2_accuracy": f2_accuracy}
+       "f3_giveback": f3_giveback, "f3_giveback_curve": f3_giveback_curve, "f2_accuracy": f2_accuracy}
 
 
 def main(names):
