@@ -28,5 +28,5 @@ HL_LOW, HL_MED, HL_HIGH = "#f4ede8", "#dfdad9", "#cecacd"
 LOVE, GOLD, ROSE, PINE, FOAM, IRIS = "#b4637a", "#ea9d34", "#d7827e", "#286983", "#56949f", "#907aa9"
 
 TG = dict(zip(TG_LABELS, (LOVE, GOLD, PINE)))
-TG_LABEL = {k: "1 trader" if k == "1" else f"{k} traders" for k in TG_LABELS}
+TG_LABEL = {k: "1 trader" if k == "1" else f"{k} trader" for k in TG_LABELS}
 UP, DOWN = FOAM, ROSE

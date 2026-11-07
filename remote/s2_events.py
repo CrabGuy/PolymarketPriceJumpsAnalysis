@@ -34,14 +34,14 @@ import pandas as pd
 MARKETS = "data/markets_final.parquet"
 SRC = "tmp/buckets"
 OUT = "tmp/events"
-BAR = 1200                     # 20-minute slots (elbow: reversal share)
+BAR = 1800                     # 30-minute slots (elbow: number of jumps)
 MIN_TRADES = 1                 # no minimum (was 100)
 MIN_MOVE = 0.15
 MAX_GAP_BARS = 10**9           # no limit on the time since the previous active bar (was 8 = 2 h)
 EDGE = 0.03                    # "settled" = the price left [EDGE, 1 - EDGE] for good (elbow)
 PRE_EDGE = 0.0                 # no band on the price before the move (was EDGE)
-LIFE_CUT_START = 0.065         # share of the life left out at the start (elbow)
-LIFE_CUT_END = 0.055           # share of the life left out at the end (elbow)
+LIFE_CUT_START = 0.07         # share of the life left out at the start (elbow)
+LIFE_CUT_END = 0.045           # share of the life left out at the end (elbow)
 CLIP = 0.02                    # prices are clipped to [CLIP, 1 - CLIP] before log-odds (flat curve: no effect on jumps)
 HORIZONS = {"1h": 3600, "6h": 6 * 3600, "24h": 24 * 3600}
 

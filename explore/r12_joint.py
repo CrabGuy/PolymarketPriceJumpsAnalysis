@@ -9,8 +9,7 @@ explore/elbow.find: a flat curve keeps the parameter at NEUTRAL (or its current 
 cannot be dropped), and peaks, straight curves and knees at an end of the range are flagged.
 
   slot      slot length, minutes                          1 - 120
-            curve: reversal share, the share of jumps whose next-trades price is back by more
-            than half the jump (lone trades that the next trades undo)
+            curve: number of jumps
   theta     jump threshold, points                        5 - 50     curve: number of jumps
   cut_start share of the life left out at the start, %    0 - 30     curve: number of jumps
   cut_end   share of the life left out at the end, %      0 - 30     curve: number of jumps
@@ -48,8 +47,8 @@ EDGES = (0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20)
 CLIPS = (0.001, 0.0025, 0.005, 0.01, 0.02, 0.03, 0.05)
 CUTS = np.arange(0, 30.5, 0.5) / 100
 THETAS = np.arange(5, 51) / 100
-START = {"events": dict(slot=1200, theta=0.15, cut_start=0.065, cut_end=0.055, edge=0.03, clip=0.02, n_next=5, t_next=45),
-         "cx": dict(slot=30, theta=0.16, cut_start=0.0, cut_end=0.07, edge=0.03, clip=0.03, n_next=4, t_next=2)}
+START = {"events": dict(slot=1800, theta=0.15, cut_start=0.07, cut_end=0.045, edge=0.03, clip=0.02, n_next=5, t_next=45),
+         "cx": dict(slot=60, theta=0.18, cut_start=0.0, cut_end=0.075, edge=0.03, clip=0.03, n_next=5, t_next=2)}
 NEUTRAL = {"cut_start": 0.0, "cut_end": 0.0}   # a flat curve drops the parameter; the clip stays as a log-odds guard
 N_GRID = np.arange(1, 17)
 T_GRID = {"events": np.array([1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180]),
@@ -152,7 +151,7 @@ def axes(g, mode):
 
 SCALE = {"slot": 1 / 60, "theta": 100, "cut_start": 100, "cut_end": 100, "edge": 100, "clip": 100,
          "n_next": 1, "t_next": 1}
-WHAT = {"slot": "reversal share", "n_next": "overshoot at the next trades", "t_next": "share with next trades"}
+WHAT = {"n_next": "overshoot at the next trades", "t_next": "share with next trades"}
 
 
 def overshoot_next(g, P, n, t_min):
@@ -165,8 +164,6 @@ def overshoot_next(g, P, n, t_min):
 
 
 def curve(g, P, name, values):
-    if name == "slot":
-        return np.array([g.reversal({**P, "slot": v}, P["n_next"], P["t_next"]) for v in values])
     if name == "n_next":
         return np.array([overshoot_next(g, P, int(v), P["t_next"]) for v in values])
     if name == "t_next":

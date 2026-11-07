@@ -37,6 +37,18 @@ from r02_persistence import (BAR, CROWD, EDGE, FEW, K_CROWD, LIFE_CUT_END, LIFE_
                              TG_EDGES, TG_LABELS, F9_BEFORE, F9_STEP, CX_SLOT, CX_TG_LABELS, CONTROL_BINS, CX_MOVED, OFFSET_LO, OFFSET_HI,
                              random_slots, share)
 SLOT = BAR // 60      # slot length in minutes, for labels
+import locale  # noqa: E402
+locale.setlocale(locale.LC_NUMERIC, "it_IT.UTF-8")
+plt.rcParams["axes.formatter.use_locale"] = True
+
+
+def it(s):
+    """English number format -> Italian (1,234.5 -> 1.234,5)."""
+    return s.translate(str.maketrans(",.", ".,"))
+
+
+def it_counts(labels):
+    return [str(k).replace("over", "oltre") for k in labels]
 
 OUT = "report/plots/"
 LD = "local_data/"
@@ -87,9 +99,9 @@ def example_bars(s):
     return g.reset_index(drop=True)
 
 
-NEWS = [("2025-02-13 17:00", "13 Feb: Tim Cook teases\n\"the newest member\nof the family\""),
-        ("2025-02-17 12:00", "16-17 Feb: reports that\nthe phone gets\na new name"),
-        ("2025-02-19 16:00", "19 Feb: Apple\nannounces\nthe iPhone 16e")]
+NEWS = [("2025-02-13 17:00", "13 feb: Tim Cook annuncia\n\"il nuovo membro\ndella famiglia\""),
+        ("2025-02-17 12:00", "16-17 feb: indiscrezioni\nsul nuovo nome\ndel telefono"),
+        ("2025-02-19 16:00", "19 feb: Apple\npresenta\nl'iPhone 16e")]
 
 
 def ex1_example():
@@ -100,12 +112,12 @@ def ex1_example():
     fig, ax = plt.subplots(figsize=(9.5, 4.6))
     ax.plot(bars.t, bars.vwap, color=HL_MED, lw=0.8, zorder=1)
     ax.scatter(bars.t, bars.vwap, s=14, color=IRIS, lw=0, zorder=2,
-               label=f"{SLOT}-minute average price (one dot per {SLOT} minutes with trades)")
+               label=f"prezzo medio di ogni slot di {SLOT} minuti con trade")
     bars["t0"], bars["v0"] = bars.t.shift(), bars.vwap.shift()
     for r in b.merge(bars[["t", "t0", "v0"]], on="t").itertuples():
         ax.plot([r.t0, r.t], [r.v0, r.p_close * 100], color=LOVE, lw=2.4, zorder=3)
         ax.scatter([r.t], [r.p_close * 100], s=30, color=LOVE, lw=0, zorder=4)
-    ax.plot([], [], color=LOVE, lw=2.4, marker="o", ms=5, label="price jumps")
+    ax.plot([], [], color=LOVE, lw=2.4, marker="o", ms=5, label="salti di prezzo")
     # the window kept (as remote/s2_events.window): the first LIFE_CUT_START and the last LIFE_CUT_END
     # of the life, which runs from the first slot to the last slot inside the settle band
     inside = bars["last"].between(EDGE * 100, 100 - EDGE * 100)
@@ -113,7 +125,7 @@ def ex1_example():
     a0, a1 = t0 + (t1 - t0) * LIFE_CUT_START, t1 - (t1 - t0) * LIFE_CUT_END
     for a, z in ((t0 - pd.Timedelta(hours=3), a0), (a1, bars.t.iloc[-1] + pd.Timedelta(hours=3))):
         ax.axvspan(a, z, color=HL_MED, alpha=0.6, lw=0, zorder=0)
-    ax.fill_between([], [], color=HL_MED, alpha=0.6, label=f"left out: first {LIFE_CUT_START:.1%} and last {LIFE_CUT_END:.1%} of the market's life")
+    ax.fill_between([], [], color=HL_MED, alpha=0.6, label=it(f"parti escluse: primo {LIFE_CUT_START * 100:g}% e ultimo {LIFE_CUT_END * 100:g}% della vita del mercato"))
     for t, txt in NEWS:
         t = pd.Timestamp(t)
         ax.axvline(t, color=SUBTLE, lw=0.8, ls=":", zorder=0)
@@ -123,8 +135,8 @@ def ex1_example():
     pct(ax)
     date_axis(ax)
     ax.legend(loc="lower right", fontsize=8.5)
-    ax.set_ylabel("price of YES")
-    ax.set_title(f"\"Will Apple launch another iPhone on February 19?\" (2025): {len(b)} price jumps, resolved YES",
+    ax.set_ylabel("prezzo di YES")
+    ax.set_title(f"\"Will Apple launch another iPhone on February 19?\" (2025): {len(b)} salti di prezzo, esito YES",
                  fontsize=11)
     save(fig, "ex1_example-market")
 
@@ -159,7 +171,7 @@ def ex2_overshoot():
     pct(ax)
     date_axis(ax)
     ax.legend(loc="lower right", fontsize=9)
-    ax.set_ylabel("price of YES")
+    ax.set_ylabel("prezzo di YES")
     ax.set_title("Saturday 15 February up close: a lone trader's sweep, mostly given back within a day")
     save(fig, "ex2_example-overshoot")
 
@@ -228,8 +240,8 @@ def f1_hero():
     fig, ax = plt.subplots(figsize=(7.2, 6))
     ax.plot([0, 100], [0, 100], color=HL_MED, lw=1.2, ls=":")
     rr = rnd.groupby(pd.cut(rnd.vwap, bins), observed=False).outcome.mean() * 100
-    ax.plot(mid, rr.values, color=MUTED, lw=2, label="at random moments (the usual bias)")
-    for sgn, c, lab in ((1, UP, "right after an UP jump"), (-1, DOWN, "right after a DOWN jump")):
+    ax.plot(mid, rr.values, color=MUTED, lw=2, label="in momenti casuali (errore abituale)")
+    for sgn, c, lab in ((1, UP, "subito dopo un salto in SU"), (-1, DOWN, "subito dopo un salto in GIÙ")):
         x = b[b.sgn == sgn]
         g = x.groupby(pd.cut(x.p_close, bins), observed=False).agg(y=("outcome", "mean"), n=("outcome", "size"))
         ok = (g.n >= 300).values
@@ -237,17 +249,17 @@ def f1_hero():
     i = 5                                                       # annotate the 55-65% bin
     up = b[(b.sgn > 0) & b.p_close.between(bins[i], bins[i + 1])].outcome.mean() * 100
     dn = b[(b.sgn < 0) & b.p_close.between(bins[i], bins[i + 1])].outcome.mean() * 100
-    ax.annotate(f"jumped UP to ~60%:\nYES won only {up:.0f}% of the time", xy=(mid[i], up), xytext=(64, 22),
+    ax.annotate(f"salto in SU fino a ~60%:\nYES ha vinto solo il {up:.0f}% delle volte", xy=(mid[i], up), xytext=(64, 22),
                 fontsize=9, color=TEXT, arrowprops=dict(arrowstyle="-", color=UP, lw=0.8))
-    ax.annotate(f"fell DOWN to ~60%:\nYES won {dn:.0f}% of the time", xy=(mid[i], dn), xytext=(18, 76),
+    ax.annotate(f"salto in GIÙ fino a ~60%:\nYES ha vinto il {dn:.0f}% delle volte", xy=(mid[i], dn), xytext=(18, 76),
                 fontsize=9, color=TEXT, arrowprops=dict(arrowstyle="-", color=DOWN, lw=0.8))
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
     pct(ax)
     pct(ax, "x")
-    ax.set_xlabel("price of YES right after the jump (or at a random moment)")
-    ax.set_ylabel("how often YES actually won")
-    ax.set_title("After a jump, the price is too far in the jump's direction")
+    ax.set_xlabel("prezzo di YES subito dopo il salto (o in un momento casuale)")
+    ax.set_ylabel("quanto spesso YES ha vinto davvero")
+    ax.set_title("Dopo un salto il prezzo è spostato troppo nella sua direzione")
     ax.legend(loc="upper left", fontsize=9)
     save(fig, "f1_hero")
     print(f"f1_hero: 55-65% bin, YES won after up moves {up:.1f}%, after down moves {dn:.1f}%, random {rr.iloc[i]:.1f}%")
@@ -282,7 +294,7 @@ def f1_splits():
     fig.suptitle(f"Overshoot is over 30% everywhere (dashed line = all markets, {allv:.0f}%)",
                  fontweight="bold", color=TEXT)
     for ax in axes[1]:
-        ax.set_xlabel("overshoot, % of the jump")
+        ax.set_xlabel("overshoot, % del salto")
     save(fig, "f1_splits")
 
 
@@ -328,7 +340,7 @@ def f2_traders():
     ax.set_xticks(x, [TG_LABEL[k] for k in TGS])
     ax.set_ylim(0, 48)
     pct(ax)
-    ax.set_ylabel("overshoot, % of the jump")
+    ax.set_ylabel("overshoot, % del salto")
     ax.set_title("The more traders behind a jump, the less it overshoots")
     save(fig, "f2_traders")
 
@@ -347,7 +359,7 @@ def f2_money():
     for tg in TGS:
         print(f"f2_money {tg}: " + ", ".join(f"{x:.3f}" for x in v[tg]))
     ax.set_xlabel(f"money traded in the jump's {SLOT} minutes")
-    ax.set_ylabel("overshoot, % of the jump")
+    ax.set_ylabel("overshoot, % del salto")
     pct(ax)
     ax.legend(ncol=3, loc="upper left", fontsize=9)
     ax.set_ylim(0, 62)
@@ -362,14 +374,14 @@ def f2_robustness():
         s = r[r.bar_min == bm].sort_values("threshold")
         v = {tg: s[f"takers {tg}"].values for tg in TGS}
         bars_tg(ax, np.arange(3), v, labels=(bm == 5))
-        ax.set_xticks(np.arange(3), [f"≥ {t * 100:.0f} points" for t in s.threshold], fontsize=9)
-        ax.set_title(f"{bm}-minute slots", fontsize=11)
-        ax.set_xlabel("minimum jump to count as a price jump", fontsize=9)
+        ax.set_xticks(np.arange(3), [f"≥ {t * 100:.0f} punti" for t in s.threshold], fontsize=9)
+        ax.set_title(f"slot di {bm} minuti", fontsize=11)
+        ax.set_xlabel("soglia minima del salto", fontsize=9)
         pct(ax)
-    axes[0].set_ylabel("overshoot, % of the jump")
+    axes[0].set_ylabel("overshoot, % del salto")
     axes[0].set_ylim(0, 56)
     axes[2].legend(*axes[0].get_legend_handles_labels(), loc="upper right", ncol=3, fontsize=8, columnspacing=0.8)
-    fig.suptitle("Same ordering for every way of defining a price jump", fontweight="bold", color=TEXT)
+    fig.suptitle("Lo stesso ordine per ogni definizione di salto di prezzo", fontweight="bold", color=TEXT)
     save(fig, "f2_robustness")
 
 
@@ -485,7 +497,7 @@ def f2_two_moves(d, P):
 def f3_decay():
     c = pd.read_csv(LD + "r03_curves_catbase.csv", index_col=[0, 1]).loc["tg"]
     cols = ["close", "next trades", "1h", "6h", "24h"]
-    labels = ["bar close", "next trades\n(minutes later)", "+1 hour", "+6 hours", "+24 hours"]
+    labels = ["fine dello slot", "trade successivi\n(minuti dopo)", "+1 ora", "+6 ore", "+24 ore"]
     fig, ax = plt.subplots(figsize=(8, 4.5))
     x = np.arange(len(cols))
     for tg in TGS:
@@ -498,9 +510,9 @@ def f3_decay():
     ax.set_xticks(x, labels)
     ax.set_xlim(-0.5, len(cols) - 0.6)
     pct(ax)
-    ax.set_ylabel("overshoot still in the price, % of the jump")
+    ax.set_ylabel("overshoot ancora nel prezzo, % del salto")
     ax.legend(fontsize=9)
-    ax.set_title("A lone trader's overshoot vanishes at the next trades;\na crowd's fades over hours")
+    ax.set_title("L'overshoot di un trader singolo sparisce ai trade successivi;\nquello di una folla cala nell'arco di ore")
     save(fig, "f3_decay")
 
 
@@ -526,7 +538,7 @@ def f4_versions():
         ax.set_xticks(x, labels, fontsize=9)
         ax.set_title(f"jumps made by {TG_LABEL[tg]}", fontsize=11)
         pct(ax)
-    axes[0].set_ylabel("overshoot, % of the jump")
+    axes[0].set_ylabel("overshoot, % del salto")
     axes[1].legend(fontsize=8, loc="upper right")
     axes[0].set_ylim(-20, 80)
     fig.suptitle("A crowd's jump that the other candidates offset is right at once",
@@ -543,8 +555,8 @@ def f5_fade():
     m = f[f.split == "money in bar"].set_index("group").loc[["below", "above"]]
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(10.5, 4.3), sharey=True, gridspec_kw=dict(width_ratios=[3, 2]))
     for ax, d, cols, labels, title in (
-            (a1, t, [TG[k] for k in TGS], [TG_LABEL[k] for k in TGS], "By who made the jump"),
-            (a2, m, [IRIS] * 2, [f"under ${MONEY_X:,.0f}", f"${MONEY_X:,.0f} or more"], "By money behind the jump")):
+            (a1, t, [TG[k] for k in TGS], [TG_LABEL[k] for k in TGS], "Per chi ha fatto il salto"),
+            (a2, m, [IRIS] * 2, [f"meno di ${MONEY_X:,.0f}", f"${MONEY_X:,.0f} o più"], "Per dollari scambiati nel salto")):
         x = np.arange(len(d))
         ax.bar(x, d.trimmed * 100, 0.55, color=cols)
         ax.errorbar(x, d.trimmed * 100, yerr=[(d.trimmed - d["trimmed lo"]) * 100, (d["trimmed hi"] - d.trimmed) * 100],
@@ -552,12 +564,12 @@ def f5_fade():
         ax.axhline(0, color=TEXT, lw=1)
         ax.set_xticks(x, labels)
         ax.set_title(title, fontsize=11)
-        ax.set_ylim(-11, 21)
+        ax.set_ylim(-14, 21)
     for i, sp in enumerate(t["spread (cents)"]):
-        a1.text(i, 18.5, f"spread {sp:.1f}¢", ha="center", fontsize=8.5, color=SUBTLE)
-    a2.set_xlabel(f"money traded in the jump's {SLOT} minutes")
-    a1.set_ylabel("return per $1 bet against the jump (cents),\nafter the spread, extremes trimmed")
-    fig.suptitle("Betting against price jumps: loses after lone pushes, pays after crowd and big-money jumps",
+        a1.text(i, 18.5, f"spread {sp:.1f}¢".replace(".", ","), ha="center", fontsize=8.5, color=SUBTLE)
+    a2.set_xlabel(f"dollari scambiati nei {SLOT} minuti del salto")
+    a1.set_ylabel("guadagno per $1 puntato contro il salto\n(centesimi, al netto dello spread)")
+    fig.suptitle("Scommettere contro i salti: si perde con i trader singoli, si guadagna con folle e grandi somme",
                  fontweight="bold", color=TEXT, fontsize=11.5)
     save(fig, "f5_fade")
 
@@ -658,7 +670,7 @@ def f8_confirmation():
     ax.axhline(0, color=TEXT, lw=1)
     ax.set_xticks(x, labels)
     pct(ax)
-    ax.set_ylabel("overshoot, % of the jump")
+    ax.set_ylabel("overshoot, % del salto")
     ax.legend(fontsize=8.5, loc="upper right")
     ax.set_title("Confirmed by the other coin: the jump keeps going; contradicted: it reverses", fontsize=11)
     save(fig, "f8_confirmation")
@@ -684,7 +696,7 @@ def sp_groups():
         ax.set_title(cat.capitalize(), fontsize=11)
         ax.set_ylim(-20, 50)
         pct(ax)
-    axes[0].set_ylabel("overshoot, % of the jump")
+    axes[0].set_ylabel("overshoot, % del salto")
     axes[1].legend(loc="upper right", fontsize=8.5)
     fig.suptitle("Sports and esports: the same pattern as every other market",
                  fontweight="bold", color=TEXT)
@@ -745,10 +757,10 @@ def count_colours(labels):
     return [group(k) for k in labels]
 
 
-KIND_TEXT = {"knee": "knee = {:g}", "edge": "knee at the end: {:g}", "flat": "flat, no effect: {}",
-             "peak": "peak, no knee: {}", "valley": "lowest point = {:g}", "straight": "straight, no knee: {}",
-             "knee before the valley": "knee = {:g} (before the curve turns up)",
-             "knee before the peak": "knee = {:g} (before the curve turns down)"}
+KIND_TEXT = {"knee": "ginocchio = {:g}", "edge": "ginocchio al bordo: {:g}", "flat": "piatta (nessun effetto): {}",
+             "peak": "picco (nessun ginocchio): {}", "valley": "punto più basso = {:g}", "straight": "retta (nessun ginocchio): {}",
+             "knee before the valley": "ginocchio = {:g} (prima che la curva risalga)",
+             "knee before the peak": "ginocchio = {:g} (prima che la curva scenda)"}
 
 
 def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False, kind="knee", used=None):
@@ -756,11 +768,11 @@ def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False, kind
     proper knee (elbow.find) says so, with the value kept (`used`: a number, or "dropped")."""
     x, y = np.asarray(x, float), np.asarray(y, float)
     if used == "dropped":
-        label, k = KIND_TEXT[kind].format("dropped"), None
+        label, k = KIND_TEXT[kind].format("eliminato"), None
     elif used is not None:
-        label, k = KIND_TEXT[kind].format(f"{used:g} kept"), used
+        label, k = KIND_TEXT[kind].format(f"{used:g} mantenuto"), used
     else:
-        label = KIND_TEXT[kind].format(k if kind.startswith("knee") or kind in ("edge", "valley") else f"{k:g} kept")
+        label = KIND_TEXT[kind].format(k if kind.startswith("knee") or kind in ("edge", "valley") else f"{k:g} mantenuto")
     ax.plot(x, y, "-", color=IRIS, lw=2)
     ax.plot(x, y, "o", color=IRIS, ms=3.2)
     if k is not None:
@@ -768,6 +780,7 @@ def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False, kind
         ax.plot([k], [ky], "o", ms=11, mfc="none", mec=ROSE if kind.startswith("knee") or kind in ("edge", "valley") else MUTED, mew=2.2)
         ax.axvline(k, color=TEXT, lw=1, ls="--")
     rising = y[-1] > y[0]
+    label = it(label)
     ax.text(0.97, 0.05 if rising else 0.95, label, transform=ax.transAxes, ha="right",
             va="bottom" if rising else "top", fontsize=8.5, color=TEXT,
             bbox=dict(boxstyle="round,pad=0.25", fc=BASE, ec="none", alpha=0.9))
@@ -779,19 +792,19 @@ def elbow_panel(ax, x, y, k, title, xlabel, ylabel, ypct=False, logx=False, kind
     ax.tick_params(labelsize=8)
     if ypct:
         fmt = "{:.1f}%" if y.max() - y.min() < 5 else "{:.0f}%"
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: fmt.format(v)))
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: it(fmt.format(v))))
 
 
-JUMPS_K = "price jumps (thousands)"
+JUMPS_K = "salti di prezzo (migliaia)"
 DEFINITION = [  # curve, title, x label, y label, y scale, y in %
-    ("slot", "Slot length", "minutes", "jumps undone by the next trades", 100, True),
-    ("theta", "Jump threshold", "points", JUMPS_K, 1e-3, False),
-    ("cut_start", "Cut at the start of life", "% of the life", JUMPS_K, 1e-3, False),
-    ("cut_end", "Cut at the end of life", "% of the life", JUMPS_K, 1e-3, False),
-    ("edge", "Settle band", "points from 0% or 100%", JUMPS_K, 1e-3, False),
-    ("clip", "Price clip", "points from 0% or 100%", JUMPS_K, 1e-3, False),
-    ("n_next", "Next trades: how many", "trades averaged", "overshoot at the next trades", 1, True),
-    ("t_next", "Next trades: how long", "minutes allowed", "jumps with next trades", 100, True),
+    ("slot", "Durata dello slot", "minuti", JUMPS_K, 1e-3, False),
+    ("theta", "Soglia del salto", "punti", JUMPS_K, 1e-3, False),
+    ("cut_start", "Taglio all'inizio della vita", "% della vita", JUMPS_K, 1e-3, False),
+    ("cut_end", "Taglio alla fine della vita", "% della vita", JUMPS_K, 1e-3, False),
+    ("edge", "Banda di chiusura", "punti da 0% o 100%", JUMPS_K, 1e-3, False),
+    ("clip", "Limite dei prezzi", "punti da 0% o 100%", JUMPS_K, 1e-3, False),
+    ("n_next", "Trade successivi: quanti", "trade nella media", "overshoot ai trade successivi", 1, True),
+    ("t_next", "Trade successivi: entro quanto", "minuti concessi", "salti con trade successivi", 100, True),
 ]
 
 
@@ -808,8 +821,8 @@ def definition_panels(mode, name, title):
 
 
 def m_definition():
-    definition_panels("events", "m_definition", "What a price jump is: each parameter from its curve, "
-                      "the others at their values")
+    definition_panels("events", "m_definition", "Che cos'è un salto di prezzo: ogni parametro dalla sua curva, "
+                      "gli altri ai loro valori")
 
 
 def m_crypto():
@@ -913,19 +926,19 @@ def f2_counts():
     col = count_colours(t.traders)
     a1.bar(x, t.share * 100, 0.7, color=col)
     for i, (sh, n) in enumerate(zip(t.share, t.jumps)):
-        a1.text(i, sh * 100 + 1.2, f"{sh:.1%}\n{n:,}" if sh >= .01 else f"{sh:.1%}", ha="center", fontsize=7.5, color=TEXT)
+        a1.text(i, sh * 100 + 1.2, it(f"{sh:.1%}\n{n:,}" if sh >= .01 else f"{sh:.1%}"), ha="center", fontsize=7.5, color=TEXT)
     a1.set_ylim(0, 82)
     pct(a1)
-    a1.set_ylabel("share of price jumps")
-    a1.set_title("How many traders make a price jump, and how much it overshoots")
+    a1.set_ylabel("quota dei salti di prezzo")
+    a1.set_title("Quanti trader fanno un salto di prezzo, e quanto è il suo overshoot")
     a2.bar(x, t.overshoot * 100, 0.7, color=col)
     a2.errorbar(x, t.overshoot * 100, yerr=[(t.overshoot - t.lo) * 100, (t.hi - t.overshoot) * 100],
                 fmt="none", ecolor=TEXT, lw=1)
     a2.axhline(0, color=SUBTLE, lw=1)
     pct(a2)
-    a2.set_ylabel("overshoot, % of the jump")
-    a2.set_xticks(x, t.traders)
-    a2.set_xlabel(f"number of different traders who took liquidity in the jump's {SLOT} minutes")
+    a2.set_ylabel("overshoot, % del salto")
+    a2.set_xticks(x, it_counts(t.traders))
+    a2.set_xlabel(f"numero di trader diversi che hanno preso liquidità nei {SLOT} minuti del salto")
     save(fig, "f2_trader-counts")
 
 
@@ -958,15 +971,15 @@ def f3_giveback_curve():
     for v in (0, 100):
         ax.axvline(v, color=SUBTLE, lw=1, ls=":")
     top = y.max() * 1.02
-    ax.text(-4, top, "the next trades\nwent further", ha="right", va="top", fontsize=8.5, color=SUBTLE)
-    ax.text(4, top, "the next trades kept\nthe jump as it was", ha="left", va="top", fontsize=8.5, color=SUBTLE)
-    ax.text(104, top * 0.45, "gave back all of it\nor more", ha="left", va="top", fontsize=8.5, color=SUBTLE)
+    ax.text(-4, top, "i trade successivi\nsono andati oltre", ha="right", va="top", fontsize=8.5, color=SUBTLE)
+    ax.text(4, top, "i trade successivi hanno\nlasciato il salto com'era", ha="left", va="top", fontsize=8.5, color=SUBTLE)
+    ax.text(104, top * 0.45, "hanno restituito tutto\nil salto o di più", ha="left", va="top", fontsize=8.5, color=SUBTLE)
     ax.set_xlim(-100, 200)
     ax.set_ylim(0, top * 1.05)
     pct(ax, "x")
-    ax.set_xlabel("share of the jump the next trades gave back")
-    ax.set_ylabel("% of single-trader jumps\nper point of give-back")
-    ax.set_title("Single-trader jumps: how much the next trades gave back (smoothed)")
+    ax.set_xlabel("quota del salto restituita dai trade successivi")
+    ax.set_ylabel("% dei salti di un trader singolo\nper punto restituito")
+    ax.set_title("Salti di un trader singolo: quanto restituiscono i trade successivi (curva smussata)")
     save(fig, "f3_giveback-curve")
 
 
@@ -977,20 +990,20 @@ def f2_accuracy():
     x = np.arange(len(a))
     ax.plot(x, a.expected_after * 100, "--", color=MUTED, lw=1.8)
     ax.plot(x, a.expected_before * 100, ":", color=MUTED, lw=1.8)
-    ax.text(x[-1] + 0.15, a.expected_after.iloc[-1] * 100, "if the price after\nthe jump were right",
+    ax.text(x[-1] + 0.15, a.expected_after.iloc[-1] * 100, "se fosse giusto il prezzo\ndopo il salto",
             va="center", fontsize=8.5, color=SUBTLE)
-    ax.text(x[-1] + 0.15, a.expected_before.iloc[-1] * 100, "if the price before\nthe jump were right",
+    ax.text(x[-1] + 0.15, a.expected_before.iloc[-1] * 100, "se fosse giusto il prezzo\nprima del salto",
             va="center", fontsize=8.5, color=SUBTLE)
     ax.errorbar(x, a.right * 100, yerr=[(a.right - a.lo) * 100, (a.hi - a.right) * 100], fmt="none", ecolor=TEXT, lw=1)
     ax.scatter(x, a.right * 100, s=60, c=count_colours(a.group), zorder=3)
-    ax.text(x[-1] + 0.15, a.right.iloc[-1] * 100, "actual", va="center", fontsize=8.5, color=TEXT, weight="bold")
-    ax.set_xticks(x, a.group)
+    ax.text(x[-1] + 0.15, a.right.iloc[-1] * 100, "osservato", va="center", fontsize=8.5, color=TEXT, weight="bold")
+    ax.set_xticks(x, it_counts(a.group))
     ax.set_xlim(-0.5, len(a) + 1.6)
-    ax.set_ylim(35, 66)
+    ax.set_ylim(35, 68)
     pct(ax)
-    ax.set_xlabel(f"number of different traders in the jump's {SLOT} minutes")
-    ax.set_ylabel("jumps that pointed toward\nthe final outcome, %")
-    ax.set_title("Jumps point the right way more often than the old price implied, less than the new one")
+    ax.set_xlabel(f"numero di trader diversi nei {SLOT} minuti del salto")
+    ax.set_ylabel("salti nella direzione\ndell'esito finale, %")
+    ax.set_title("I salti indovinano la direzione più spesso di quanto dicesse il prezzo di prima,\nmeno di quanto dica quello di dopo")
     save(fig, "f2_accuracy")
 
 
