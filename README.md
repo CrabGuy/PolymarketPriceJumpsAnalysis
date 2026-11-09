@@ -47,7 +47,7 @@ riportano gli stessi valori).
 | 4.1-4.2 Overshoot e gruppi di trader | `explore/r02_persistence.py`, `r03_robustness.py`, `r04_types.py`, `r07_basis.py`, `r05_event_markets.py` (a parità di tutto il resto), `r07_sports.py` (sport ed esport) |
 | 4.3-4.4 Restituzione e accuratezza | `explore/r03_robustness.py` (andamento nel tempo), `r11_traders.py` (`r11_traders.py curve` per la curva della restituzione) |
 | 4.5 Scommettere contro i salti | `explore/r06_fade.py`, `r08_fade_robust.py` |
-| 5. Mercati crypto | `explore/r05_updown.py` |
+| 5. Mercati crypto | `explore/r05_keep_cx.py` (quali mercati), `r05_cx_paths.py` (percorsi dei prezzi a 30 punti), `r05_updown.py` |
 | Grafici e PDF | `explore/report_stats.py`, `report_figures.py`, `report_style.py`, `report_pdf.py` |
 
 Gli altri script di `explore/` (`r07_siblings.py`, `r08_pairs.py`, `r06_concentration.py`,
@@ -64,7 +64,9 @@ di fine, evento, `neg_risk`) e `data/market_tags.csv` (le etichette dei mercati)
 
 1. **Estrazione** (`remote/`, Python 3.8+ con numpy, pandas, pyarrow). In ordine:
    `s1_bucket.py` (raggruppa i trade in 32 bucket per mercato; `s1u_bucket.py` e
-   `s1x_bucket.py` fanno lo stesso per i mercati crypto up/down); `s12_grid.py events|cx` su
+   `s1x_bucket.py` fanno lo stesso per i mercati crypto up/down; `s1x_bucket.py` legge la lista
+   dei mercati da `tmp/keep_cx.txt`, scritta prima da `explore/r05_keep_cx.py` a partire da
+   `market_tags.csv` copiato in `local_data/`); `s12_grid.py events|cx` su
    ogni bucket (i dati della ricerca dei parametri); poi `s2_events.py`,
    `s3_events.py 1800|300|3600`, `s6_micro.py`, `s4_paths.py finemoves|cxmoves|cxfine`,
    `s7_events.py basis`, `s8_wallets.py` (le coppie in ingresso vengono da
@@ -78,7 +80,7 @@ di fine, evento, `neg_risk`) e `data/market_tags.csv` (le etichette dei mercati)
    `r12_f9.py B` (da ripetere finché nessun valore si sposta). I risultati, in ordine:
    `r02_persistence.py`, `r03_robustness.py`, `r04_types.py`, `r05_event_markets.py`,
    `r08_pairs.py` e `r07_siblings.py`, `r06_fade.py`, `r08_fade_robust.py`,
-   `r06_concentration.py`, `r07_sports.py`, `r05_updown.py`, `r04_motifs.py`,
+   `r06_concentration.py`, `r07_sports.py`, `r05_cx_paths.py` e `r05_updown.py`, `r04_motifs.py`,
    `r04_btc_chain.py`, `r05_crypto_mp.py`, `r05_mp_explained.py`, `r07_basis.py`,
    `r10_information.py`, `r11_traders.py` e `r11_traders.py curve`, infine `report_stats.py`
    e `report_figures.py` (scrive i grafici). `report_pdf.py report/REPORT.md` crea il PDF

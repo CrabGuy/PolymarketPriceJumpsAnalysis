@@ -9,7 +9,8 @@ Input (remote/s1x_bucket.py -> s4_paths.py cx / cxmoves):
                                         bitcoin/ether/solana/xrp 15-min market and every
                                         bitcoin/ether 5-min and 1-hour market
   local_data/r05/cx_paths/cx_*.parquet  each market's YES price at 30 evenly spaced times
-                                        over its window (last trade at or before each time)
+                                        over its window (last trade at or before each time);
+                                        written by explore/r05_cx_paths.py
 Overshoot as in round 4 (outcome-based, share of the move), with the calibration
 baseline from the pre-move prices of each (asset, market length).
 

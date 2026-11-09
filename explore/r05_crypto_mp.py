@@ -2,7 +2,7 @@
 Round 5, part 5: matrix profiles across the crypto up/down markets.
 
 Input: local_data/r05/cx_paths/cx_*.parquet (each market's YES price at 30 evenly spaced
-times over its window) and local_data/r05/r05_ud_moves.parquet (from r05_updown.py).
+times over its window, from explore/r05_cx_paths.py) and local_data/r05/r05_ud_moves.parquet (from r05_updown.py).
 
   A  Chains: for each coin, its 15-minute markets back to back on one 15-minute grid
      (30 points per market, log-odds; markets with fewer than MIN_TRADES trades -> NaN),

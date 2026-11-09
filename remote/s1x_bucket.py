@@ -1,9 +1,9 @@
 """
 Stage 1 for the full crypto up/down set: every bitcoin, ethereum, solana and xrp 15-minute
 market, plus every bitcoin and ethereum 5-minute and 1-hour market (the market ids are listed
-in tmp/keep_cx.txt). Same columns and sweep flags as s1_bucket.py (whose code is reused),
-written to tmp/buckets_cx. Only row groups whose newest trade is after FROM_TS are read
-(these markets start in June 2025).
+in tmp/keep_cx.txt, written by explore/r05_keep_cx.py). Same columns and sweep flags as
+s1_bucket.py (whose code is reused), written to tmp/buckets_cx. Only row groups whose newest
+trade is after FROM_TS are read (these markets start in June 2025).
 
 Usage: python s1x_bucket.py <first_row_group> <last_row_group_exclusive>
        python s1x_bucket.py first        (prints the first row group to read)
