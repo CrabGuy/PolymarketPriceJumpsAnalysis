@@ -81,7 +81,7 @@ trade** dei mercati (14,8 milioni di slot di mercati con esito chiaro, nella ste
 vita usata per i salti), separatamente per categoria e per fascia di prezzo. Le fasce sono **10, di
 10 punti ciascuna**, come nei diagrammi di affidabilità e nell'errore di calibrazione atteso
 (Naeini, Cooper e Hauskrecht 2015; Guo et al. 2017 ne usano 15). Con 15 o 20 fasce, o senza fasce
-(regressione isotonica, Dimitriadis, Gneiting e Jordan 2021), l'overshoot cambia di meno di 0,1
+(regressione isotonica, Dimitriadis, Gneiting e Jordan 2021), l'overshoot cambia di meno di 0,2
 punti. In formula, per un salto $j$ dal prezzo $p_{j^-}$ al prezzo $p_j$, con esito $O_j$ (1 se ha
 vinto YES, 0 se NO) e direzione $d_j$ (+1 verso l'alto, −1 verso il basso):
 
