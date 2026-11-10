@@ -218,7 +218,9 @@ non è quindi un piccolo calo di ogni salto: alcuni salti vengono cancellati, al
 
 **Quanto dura l'overshoot.** Per un trader singolo l'overshoot passa dal 43% al **9% già ai trade
 successivi** (in mediana 16 minuti dopo). Per una folla parte più in basso (28%) ma persiste: 26%
-ai trade successivi (in mediana 2 minuti dopo), 19% dopo un'ora, 1% dopo un giorno.
+ai trade successivi (in mediana 2 minuti dopo), 19% dopo un'ora, 1% dopo un giorno. Questi valori
+sono calcolati solo sui salti che hanno sia i trade successivi sia i prezzi dopo 1, 6 e 24 ore
+(per la folla 5.068 salti): per questo il 28% non coincide con il 14,0% di tutti i salti della folla.
 
 ![Come si riduce l'overshoot nel tempo](plots/f3_decay.png)
 
@@ -283,8 +285,8 @@ calibrazione è misurato come per gli altri mercati, su tutti gli slot crypto, p
 del mercato e fascia di prezzo. Alla fine del minuto compare lo stesso schema: i trader singoli
 vanno oltre il dovuto (+22% nei mercati da 15 minuti, intervallo 15-28%), mentre le folle di 6 o
 più trader non si spingono abbastanza (−10% nei mercati da 15 minuti, −8% in quelli da 5). Pochi
-secondi dopo, ai trade successivi, la differenza tra i gruppi scompare (+5% e +6% nei mercati da
-15 minuti).
+secondi dopo, ai trade successivi, la differenza tra i gruppi scompare (+5% per i trader singoli e
++6% per le folle, nei mercati da 15 minuti).
 
 ![Le curve dei parametri dei mercati crypto](plots/m_crypto.png)
 
