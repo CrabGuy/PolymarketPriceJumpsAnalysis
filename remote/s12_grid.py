@@ -6,7 +6,7 @@ s2_events (VWAP price, last trade, distinct takers) and, with no window applied,
 needed to apply any threshold, start/end cut, settle band and price clip locally:
   j  every move of at least MIN_PTS between consecutive slots with trades (market, t_close,
      raw previous VWAP y_pre, raw VWAP, takers, usd)
-  r  a SAMPLE share of all slots (market, t_close, vwap), for the baseline
+  r  every slot with trades (market, t_close, vwap), for the calibration error b(p)
   m  per market and slot length: first and last slot close, and for each settle band edge in
      EDGES the settle moment (the last slot whose last trade is inside [edge, 1 - edge], when
      the market's last slot is outside it; NaN otherwise)
@@ -31,7 +31,6 @@ import s2_events as s2
 
 EDGES = (0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20)
 MIN_PTS = 0.05
-SAMPLE = 0.02
 NEXT_N = 16
 NEXT_MIN_PTS = 0.08
 MODES = {
@@ -64,7 +63,7 @@ def market_times(b, bar_s):
     return out.reset_index()
 
 
-def moves(b, bar_s, rng):
+def moves(b, bar_s):
     mk, v = b.market.values, b.vwap.values
     prev = np.r_[False, mk[1:] == mk[:-1]]
     y_pre = np.r_[np.nan, v[:-1]]
@@ -72,9 +71,7 @@ def moves(b, bar_s, rng):
     j = pd.DataFrame({"slot": bar_s, "market": mk[ev], "t_close": b.t_close.values[ev],
                       "y_pre": y_pre[ev].astype("float32"), "vwap": v[ev].astype("float32"),
                       "takers": b.takers.values[ev].astype("int32"), "usd": b.usd.values[ev].astype("float32")})
-    pick = rng.random(len(b)) < SAMPLE
-    r = pd.DataFrame({"slot": bar_s, "market": mk[pick], "t_close": b.t_close.values[pick],
-                      "vwap": v[pick].astype("float32")})
+    r = pd.DataFrame({"slot": bar_s, "market": mk, "t_close": b.t_close.values, "vwap": v.astype("float32")})
     gaps = np.diff(b.bar.values)[mk[1:] == mk[:-1]]
     g = pd.Series(np.minimum(gaps, 500)).value_counts().rename_axis("gap").reset_index(name="n")
     g["slot"] = bar_s
@@ -105,11 +102,10 @@ def process(mode, k):
     d = pd.concat([pd.read_parquet(f, columns=["market", "ts", "yes", "usd", "taker"]) for f in files],
                   ignore_index=True)
     d = d.sort_values(["market", "ts"], kind="mergesort").reset_index(drop=True)
-    rng = np.random.default_rng(k)
     out = {c: [] for c in "jrmgx"}
     for bar_s in cfg["slots"]:
         b = slots(d, bar_s)
-        j, r, g = moves(b, bar_s, rng)
+        j, r, g = moves(b, bar_s)
         out["j"].append(j)
         out["r"].append(r)
         out["g"].append(g)

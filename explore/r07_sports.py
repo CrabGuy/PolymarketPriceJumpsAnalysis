@@ -2,10 +2,7 @@
 Round 7 (updated round 9): price jumps in sports and esports markets.
 
 Input: the main jumps (local_data/r03_big_moves_main.parquet and r03_tradable_main.parquet from
-explore/r03_robustness.py): 30-min VWAP slots, jumps of 13 points or more, the first and last
-5% of each market's life left out. Since round 9 the window scales with the market, so the
-games keep their jumps and the separate whole-life run (remote/s7_events.py "sports") is no
-longer used.
+explore/r03_robustness.py), with the same definition and b(p) as every other result.
 
 Overshoot as in F2 (category baseline, ratio of sums), at the close and at the next trades.
 Splits: by number of traders, by category (sports / esports) and by sport. No live /
@@ -20,8 +17,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import TG_LABELS, category  # noqa: E402
-from r05_siblings import boot_share, share  # noqa: E402
+from r02_persistence import TG_LABELS, boot_share, category  # noqa: E402
+
+
+def share(x, col):
+    return x[col].sum() / x.absdp.sum()
 
 OUT = "local_data/r07/"
 SPORT = [("soccer", r"soccer|epl|premier-league|la-liga|serie-a|bundesliga|ligue-1|champions-league|mls|football-club"),
@@ -49,8 +49,6 @@ def load():
 def table(e, by, col="oc"):
     rows = []
     for k, x in e.groupby(by, observed=True):
-        if x.market.nunique() < 50:
-            continue
         lo, hi = boot_share(x, col)
         k = k if isinstance(k, tuple) else (k,)
         rows.append(dict(zip(by, k), moves=len(x), markets=x.market.nunique(), overshoot=share(x, col), lo=lo, hi=hi,

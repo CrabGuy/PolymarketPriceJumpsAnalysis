@@ -1,33 +1,31 @@
 """
-Round 12: joint elbow search for the parameters that define a price jump, and for the
-next-trades price, on every market (remote/s12_grid.py on all 32 buckets, run on the server).
+Joint elbow search for the parameters that define a price jump and the next-trades price, on
+every market (remote/s12_grid.py on all 32 buckets; this script runs on the server, next to the
+grid, and only the small CSVs come back).
 
-All eight parameters depend on each other and are searched together, by coordinate-wise fixed
-point: each one is set to the knee of its curve with all the others at their current values,
-and the loop repeats until no value moves. The knee is the Kneedle point after the checks of
-explore/elbow.find: a flat curve keeps the parameter at NEUTRAL (or its current value, when it
-cannot be dropped), and peaks, straight curves and knees at an end of the range are flagged.
+The eight parameters depend on each other and are searched together, by fixed point: each one
+is set to the knee of its curve with all the others at their current values, and the loop
+repeats until no value moves. The knee comes from explore/elbow.find (Kneedle with its own
+detection rule, after the flat and turning-point checks); a flat curve drops the parameter
+(NEUTRAL) or keeps its current value when it cannot be dropped.
 
-  slot      slot length, minutes                          1 - 120
-            curve: number of jumps
+  slot      slot length, minutes                          1 - 120    curve: number of jumps
   theta     jump threshold, points                        5 - 50     curve: number of jumps
   cut_start share of the life left out at the start, %    0 - 30     curve: number of jumps
   cut_end   share of the life left out at the end, %      0 - 30     curve: number of jumps
   edge      settle band edge, points                      1 - 20     curve: number of jumps
   clip      price clip before jumps are measured, points  0.1 - 5    curve: number of jumps
   n_next    next trades averaged                          1 - 16     curve: overshoot at the next trades
+                                                                     (b(p) from every slot of that length)
   t_next    minutes allowed for them                      1 - 180 (crypto 0.25 - 15)
                                                                      curve: share of jumps with next trades
 The same is done for the crypto up/down markets (mode cx, slot 15 s - 5 min).
-Also: two-dimensional grids of the number of jumps over (slot, theta) and (cut_end, edge),
-with the knee of each row and column, to show how each knee depends on the other parameter.
 
-Outputs local_data/r12/<mode>_fixed.csv (the knee path), <mode>_curves.csv (each curve at the
-fixed point), <mode>_grid_slot_theta.csv (jumps and reversal share), <mode>_grid_cut_edge.csv.
-Usage: python explore/r12_joint.py [events|cx]
-On the server, on every market (the grid is too large to copy): PM_GRID=tmp/grid PM_OUT=tmp/joint
-PM_MARKETS=<markets_final.parquet> PM_TAGS=<market_tags.csv> python r12_joint.py events (with
-r02_persistence.py, r03_robustness.py and elbow.py next to it); only the small CSVs come back.
+Outputs <PM_OUT>/<mode>_fixed.csv (the path to the fixed point) and <mode>_curves.csv (each curve
+at the fixed point), copied to local_data/r12/full/.
+Usage, on the server: PM_GRID=tmp/grid PM_OUT=tmp/joint PM_MARKETS=<markets_final.parquet>
+PM_TAGS=<market_tags.csv> python r12_joint.py events|cx   (with r02_persistence.py and elbow.py
+next to it).
 """
 import glob
 import os
@@ -37,8 +35,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r02_persistence import TAGS, category, outcomes  # noqa: E402
-from r03_robustness import cat_baseline, overshoot_cat  # noqa: E402
+from r02_persistence import TAGS, cat_baseline, category, outcomes, overshoot_cat  # noqa: E402
 from elbow import find  # noqa: E402
 
 SRC = os.environ.get("PM_GRID", "local_data/r12/grid")     # the server run reads tmp/grid and writes tmp/joint
@@ -47,8 +44,8 @@ EDGES = (0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20)
 CLIPS = (0.001, 0.0025, 0.005, 0.01, 0.02, 0.03, 0.05)
 CUTS = np.arange(0, 30.5, 0.5) / 100
 THETAS = np.arange(5, 51) / 100
-START = {"events": dict(slot=1800, theta=0.15, cut_start=0.07, cut_end=0.045, edge=0.03, clip=0.02, n_next=5, t_next=45),
-         "cx": dict(slot=60, theta=0.18, cut_start=0.0, cut_end=0.075, edge=0.03, clip=0.03, n_next=5, t_next=2)}
+START = {"events": dict(slot=1200, theta=0.15, cut_start=0.065, cut_end=0.055, edge=0.03, clip=0.02, n_next=5, t_next=45),
+         "cx": dict(slot=30, theta=0.16, cut_start=0.0, cut_end=0.07, edge=0.03, clip=0.03, n_next=4, t_next=2)}
 NEUTRAL = {"cut_start": 0.0, "cut_end": 0.0}   # a flat curve drops the parameter; the clip stays as a log-odds guard
 N_GRID = np.arange(1, 17)
 T_GRID = {"events": np.array([1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180]),
@@ -66,7 +63,7 @@ class Grid:
     def __init__(self, mode):
         self.mode = mode
         self.j = {s: x.reset_index(drop=True) for s, x in read(mode, "j").groupby("slot")}
-        self.r = {s: x.reset_index(drop=True) for s, x in read(mode, "r").groupby("slot")}
+        self._r = {}                       # every slot with trades, read one slot length at a time
         self.m = {s: x.set_index("market") for s, x in read(mode, "m").groupby("slot")}
         self.slots = sorted(self.j)
         self._pos, self._x = {}, {}
@@ -77,7 +74,7 @@ class Grid:
     def pos(self, kind, slot, edge):
         key = (kind, slot, edge)
         if key not in self._pos:
-            x = (self.j if kind == "j" else self.r)[slot]
+            x = self.j[slot] if kind == "j" else self.rslots(slot)
             m = self.m[slot].reindex(x.market.values)
             t0 = m.t_first.values
             t1 = np.where(np.isnan(m[f"settle_{edge:g}"].values), m.t_last.values, m[f"settle_{edge:g}"].values)
@@ -102,8 +99,17 @@ class Grid:
         p = np.clip(x.vwap.values, P["clip"], 1 - P["clip"])
         return int((self.mask("j", P) & (np.abs(p - x.y_pre.values) >= P["theta"])).sum())
 
+    def rslots(self, slot):
+        """All slots with trades of one slot length (the b(p) of the next-trades curve)."""
+        if slot not in self._r:
+            self._r.clear()
+            for key in [k for k in self._pos if k[0] == "r"]:
+                del self._pos[key]
+            self._r[slot] = read(self.mode, "r", filters=[("slot", "==", int(slot))]).reset_index(drop=True)
+        return self._r[slot]
+
     def randoms(self, P):
-        return self.r[P["slot"]][self.mask("r", P)]
+        return self.rslots(P["slot"])[self.mask("r", P)]
 
     def next_trades(self, slot):
         """(pos, y, u, dt) for j[slot]: pos is each move's row in the next-trade arrays (-1: none
@@ -129,13 +135,6 @@ class Grid:
         u = np.where((dt >= 0) & (dt < t_min * 60), np.nan_to_num(u), 0)
         e[ok] = np.where(u.sum(1) > 0, (np.nan_to_num(y) * u).sum(1) / np.maximum(u.sum(1), 1e-12), np.nan)
         return e, x
-
-    def reversal(self, P, n, t_min):
-        """Share of the jumps whose next-trades price is back by more than half the jump."""
-        e, x = self.entry(P, n, t_min)
-        dp = x.p_close.values - x.y_pre.values
-        ok = ~np.isnan(e)
-        return float((((x.p_close.values - e) * np.sign(dp))[ok] > 0.5 * np.abs(dp[ok])).mean())
 
     def with_outcome(self, x):
         x = x.assign(outcome=x.market.map(self.out))
@@ -194,24 +193,10 @@ def fixed_point(g, mode, max_iter=10):
     return P, kinds, pd.DataFrame(path)
 
 
-def grids(g, P, mode):
-    ax = axes(g, mode)
-    st = pd.DataFrame([{"slot": s / 60, "theta": t * 100, "jumps": g.count({**P, "slot": s, "theta": t}),
-                        "reversal": g.reversal({**P, "slot": s, "theta": t}, P["n_next"], P["t_next"])}
-                       for s in ax["slot"] for t in ax["theta"]])
-    ce = pd.DataFrame([{"cut_end": c * 100, "edge": e * 100, "jumps": g.count({**P, "cut_end": c, "edge": e})}
-                       for c in ax["cut_end"] for e in ax["edge"]])
-    return st, ce
 
 
-def row_knees(df, row, col, y="jumps"):
-    """Value find() gives for `col` (curve: y) at each value of `row`."""
-    out = {}
-    for v, s in df.groupby(row):
-        s = s.sort_values(col)
-        i, kind = find(s[col].values, s[y].values)
-        out[v] = f"{s[col].values[i]:g} ({kind})"
-    return pd.Series(out, name=f"knee_{col}")
+
+
 
 
 def main(mode):
@@ -225,13 +210,6 @@ def main(mode):
         rows += [{"curve": name, "x": v * SCALE[name], "y": c, "knee": P[name] * SCALE[name], "kind": kinds[name]}
                  for v, c in zip(values, y)]
     pd.DataFrame(rows).to_csv(f"{OUT}/{mode}_curves.csv", index=False)
-    st, ce = grids(g, P, mode)
-    st.to_csv(f"{OUT}/{mode}_grid_slot_theta.csv", index=False)
-    ce.to_csv(f"{OUT}/{mode}_grid_cut_edge.csv", index=False)
-    print("theta knee by slot:", row_knees(st, "slot", "theta").to_dict())
-    print("slot knee by theta (reversal):", row_knees(st, "theta", "slot", "reversal").to_dict())
-    print("cut_end knee by edge:", row_knees(ce, "edge", "cut_end").to_dict())
-    print("edge knee by cut_end:", row_knees(ce, "cut_end", "edge").to_dict())
     print("fixed point:", {k: v * SCALE[k] for k, v in P.items()}, kinds)
 
 

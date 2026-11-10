@@ -14,8 +14,9 @@ Input: local_data/r03_big_moves_main.parquet (explore/r03_robustness.py), the ma
             (p_close for up jumps, 1 - p_close for down jumps) and if the price before it were
             right (same with p_pre); per trader group and per exact number of traders
 
-  curve     the same next-trades give-back of single-trader jumps as a smooth line (kernel
-            density) instead of 10-point bins
+  curve     the same next-trades give-back of single-trader jumps as a smooth line: a Gaussian
+            kernel density with Silverman's robust rule-of-thumb bandwidth,
+            h = 0.9 * min(sd, IQR / 1.34) * n^(-1/5) (Silverman 1986), on every jump
 
 Outputs local_data/r11_traders.csv, r11_giveback.csv, r11_accuracy.csv;
 with "curve" only local_data/r11_giveback_curve.csv.
@@ -27,8 +28,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "explore")
-from r05_siblings import boot_share  # noqa: E402
-from r02_persistence import N_RESAMPLES  # noqa: E402
+from r02_persistence import N_RESAMPLES, boot_share  # noqa: E402
 
 COUNTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 50, np.inf]
 COUNT_LABELS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11-20", "21-50", "over 50"]
@@ -52,8 +52,13 @@ def giveback(b):
     out = pd.DataFrame({k: pd.cut(v, GB_BINS, right=False).value_counts(normalize=True).sort_index() for k, v in g.items()})
     out.index = [f"{i.left:.1f}..{i.right:.1f}" for i in out.index]
     for k, v in g.items():
-        print(f"{k}: {len(v):,} jumps, median give-back {v.median():.0%}, gave back >= half {np.mean(v >= .5):.0%}, "
-              f"all or more {np.mean(v >= 1):.0%}, went further {np.mean(v < 0):.0%}")
+        print(f"{k}: {len(v):,} jumps, median give-back {v.median():.1%}, gave back >= half {np.mean(v >= .5):.1%}, "
+              f"all or more {np.mean(v >= 1):.1%}, went further {np.mean(v < 0):.1%}, kept (0-10%) "
+              f"{np.mean((v >= 0) & (v < .1)):.1%}")
+    n = s[s.entry_vwap.notna()]
+    print(f"next trades, weighted by jump size: {((n.p_close - n.entry_vwap) * n.sgn).sum() / n.absdp.sum():.1%} "
+          f"of all the points of these jumps given back; {len(n):,} of {len(s):,} single-trader jumps "
+          f"({len(n) / len(s):.1%}) have next trades")
     return out
 
 
@@ -80,16 +85,22 @@ def accuracy(b):
 
 
 def giveback_curve(b):
-    """Smooth distribution (Gaussian kernel density) of the share given back by the next
-    trades, single-trader jumps, on a 1-point grid from -100% to 200%. 'density' is the % of
-    jumps per percentage point of give-back; 'below' is the % of jumps at or under each value."""
+    """Smooth distribution (Gaussian kernel density, Silverman's robust bandwidth) of the share
+    given back by the next trades, single-trader jumps, drawn on a 1-point grid from -100% to 200%
+    (every jump enters the estimate). 'density' is the % of jumps per percentage point of
+    give-back; 'below' is the % of jumps at or under each value."""
     from scipy.stats import gaussian_kde
     s = b[b.takers == 1]
     g = ((s.p_close - s.entry_vwap) / (s.p_close - s.y_pre)).dropna().values
     x = np.round(np.arange(-1, 2.0001, 0.01), 2)
-    kde = gaussian_kde(g[(g > -3) & (g < 4)], bw_method=0.03)
+    iqr = np.subtract(*np.percentile(g, [75, 25]))
+    h = 0.9 * min(g.std(ddof=1), iqr / 1.34) * len(g) ** -0.2      # Silverman (1986), eq. 3.30-3.31
+    kde = gaussian_kde(g, bw_method=h / g.std(ddof=1))
     out = pd.DataFrame({"giveback": x, "density": kde(x), "below": [np.mean(g <= v) * 100 for v in x]})
-    print(f"curve: {len(g):,} jumps, {np.mean(g < -1):.1%} below -100%, {np.mean(g > 2):.1%} above 200%")
+    print(f"curve: {len(g):,} jumps, bandwidth {h * 100:.2f} points (sd {g.std(ddof=1):.3f}, IQR {iqr:.3f}); "
+          f"{np.mean(g < -1):.1%} below -100%, {np.mean(g > 2):.1%} above 200%")
+    loc = [i for i in range(1, len(x) - 1) if out.density[i] > out.density[i - 1] and out.density[i] >= out.density[i + 1]]
+    print("local maxima of the curve at give-back:", [f"{x[i]:.0%}" for i in loc])
     return out
 
 

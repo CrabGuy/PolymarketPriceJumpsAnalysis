@@ -7,8 +7,8 @@ configurable bar size. Extra columns per move:
                (at most ENTRY_MAX later): the next price an outsider could have traded at
   entry_n, entry_delay   how many trades that used, and seconds to the first one
   taker1       hash of the only taker when the move bar had exactly one, else 0
-Also, for the main bar size (s2.BAR) only: a 5% random sample of all active bars (market, t_close, vwap)
-for a calibration baseline at random moments.
+Also, for the main bar size (s2.BAR) only: every bar with trades inside the window (market,
+t_close, vwap), for the calibration error b(p).
 
 Writes tmp/events3/<bar>/e<k>.parquet and tmp/events3/<bar>/r<k>.parquet.
 Usage: python s3_events.py <bar_seconds> <bucket> [<bucket> ...]
@@ -26,7 +26,6 @@ import s2_events as s2
 
 ENTRY_N = 5                    # next trades: how many (elbow)
 ENTRY_MAX = 2700               # next trades: within this many seconds (elbow)
-SAMPLE = 0.05
 OUT_ROOT = "tmp/events3"
 
 
@@ -84,9 +83,7 @@ def process(k, end_ts, bar_s):
 
     rnd = None
     if bar_s == s2.BAR:
-        rng = np.random.default_rng(k)
-        pick = rng.random(len(bars)) < SAMPLE
-        rnd = bars.loc[pick, ["market", "t_close", "vwap"]].copy()
+        rnd = bars[["market", "t_close", "vwap"]].copy()
         rnd["vwap"] = rnd.vwap.astype("float32")
     return e, rnd
 
