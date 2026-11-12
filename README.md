@@ -52,7 +52,7 @@ riportano gli stessi valori).
 | 1. Dati | `remote/s1_bucket.py` (raggruppa i trade), `s13_counts.py` (trade per mese e mercato), `explore/report_stats.py` |
 | 2. Salti, trade successivi, errore di calibrazione | `remote/s2_events.py`, `s3_events.py` (slot, finestra di vita, salti, tutti gli slot per l'errore di calibrazione), `p7_extract.py` (mercato d'esempio); `explore/r02_persistence.py`, `r13_calibration.py` (curva dell'errore di calibrazione e confronti) |
 | 3. Parametri | `remote/s12_grid.py`; `explore/elbow.py` (il ginocchio), `r12_joint.py`, `r12_params.py` |
-| 4.1-4.2 Overshoot e gruppi di trader | `explore/r02_persistence.py`, `r03_robustness.py`, `r11_traders.py`, `r07_sports.py` |
+| 4.1-4.2 Overshoot e gruppi di trader | `explore/r02_persistence.py`, `r03_robustness.py`, `r11_traders.py`, `r07_sports.py`, `r18_groups.py` (gruppi di trader per categoria e anno) |
 | 4.3-4.4 Restituzione e direzione | `explore/r03_robustness.py`, `r11_traders.py` (`r11_traders.py curve` per la curva) |
 | 4.5 Scommettere contro i salti | `remote/s6_micro.py`; `explore/r06_fade.py`, `r08_fade_robust.py` |
 | 5. Mercati crypto | `explore/r05_keep_cx.py` (quali mercati), `remote/s1x_bucket.py`, `s4_paths.py cxmoves`; `explore/r05_updown.py` |
@@ -75,7 +75,7 @@ di fine, evento, `neg_risk`) e `data/market_tags.csv` (le etichette dei mercati)
 2. **Analisi** (`explore/`, Python 3.10+ con numpy, pandas, scipy, matplotlib). Copiare le uscite
    dell'estrazione in `local_data/` (i nomi delle cartelle sono nella docstring di ogni script) ed
    eseguire dalla radice del repository, in ordine: `r02_persistence.py`, `r03_robustness.py`,
-   `r06_fade.py`, `r08_fade_robust.py`, `r07_sports.py`, `r11_traders.py` e `r11_traders.py curve`,
+   `r06_fade.py`, `r08_fade_robust.py`, `r07_sports.py`, `r18_groups.py`, `r11_traders.py` e `r11_traders.py curve`,
    `r05_updown.py`, `r12_params.py`, `r13_calibration.py`, `report_stats.py`, `report_figures.py`
    (scrive i grafici). `report_pdf.py report/REPORT.md` crea il PDF (richiede i pacchetti
    `markdown` e `latex2mathml` e Microsoft Edge).

@@ -184,7 +184,19 @@ di 10, 15 o 20 punti, in tutte e nove le combinazioni i salti di un trader hanno
 
 ![Lo stesso ordine per ogni definizione di salto](plots/f2_robustness.png)
 
-Anche le altre verifiche portano alla stessa conclusione:
+**Per categoria e per anno.** I salti di un trader hanno un overshoot simile in ogni categoria: dal
+38-39% (crypto e "altro") al 46% (esport). Le categorie si distinguono per le folle: il 6% in
+economia e l'8% in cultura, tra il 14% e il 18% in sport, politica, elezioni, esport e crypto, il
+30% in geopolitica (269 salti). Cambia anche il gruppo intermedio: nei mercati crypto i salti di
+2-4 trader hanno quasi lo stesso overshoot di quelli di un trader (38% contro 39%), negli esport
+molto meno (28% contro 46%). Negli anni, l'overshoot dei salti di un trader è del 36% nel 2023 e
+del 43-45% dal 2024; quello dei salti di 2-4 trader scende dal 40% del 2024 al 31% del 2026; quello
+delle folle resta tra il 13% e il 16%. La figura non mostra i gruppi con meno di 100 salti (le
+folle nel 2023 e nella categoria "altro") né il 2022 (16 salti).
+
+![L'overshoot per gruppo di trader, in ogni categoria e in ogni anno](plots/f2_categories.png)
+
+Le altre verifiche confermano l'ordine tra i gruppi:
 - **A parità di soldi.** Sotto i $200 nello slot: 43% per un trader contro 12% per una folla; da
   $200 in su: 38% contro 15%.
 - **Non si tratta di pochi wallet.** I 99.836 salti di un trader vengono da 47.045 wallet diversi.

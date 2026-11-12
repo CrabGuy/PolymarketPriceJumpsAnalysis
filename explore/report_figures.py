@@ -16,6 +16,7 @@ drawn from tables the analysis scripts saved; nothing here changes a result.
   f1_hero              price right after a jump vs how often YES won                section 4.1
   f2_trader-counts     jumps and overshoot by exact number of traders               section 4.2
   f2_robustness        the same order for every slot length and threshold           section 4.2
+  f2_categories        overshoot by trader group in every category and year        section 4.2
   f3_giveback-curve    how much of a lone trader's jump the next trades give back   section 4.3
   f3_decay             the overshoot over time, by trader group                     section 4.3
   f2_accuracy          how often jumps point toward the outcome                     section 4.4
@@ -484,6 +485,31 @@ def f2_robustness():
     save(fig, "f2_robustness")
 
 
+def f2_categories():
+    """Overshoot by trader group within each category and year (explore/r18_groups.py). 2022 (16
+    jumps) and bars with under 100 jumps are not drawn."""
+    t = pd.read_csv(LD + "r18_groups.csv", dtype={"level": str})
+    t = t[t.jumps >= 100]
+    c, y = t[t.split == "cat"], t[(t.split == "year") & (t.level >= "2023")]
+    cats = list(c[c.group == "all"].sort_values("jumps", ascending=False).level)
+    years = sorted(y.level.unique())
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.4), sharey=True, gridspec_kw={"width_ratios": [9, 4.4]})
+    for ax, d, levels, names, lab in ((axes[0], c, cats, [CAT_IT[k] for k in cats], "categoria del mercato"),
+                                      (axes[1], y, years, years, "anno del salto")):
+        v, lo, hi = ({tg: d[d.group == tg].set_index("level")[col].reindex(levels).values / 100 for tg in TGS}
+                     for col in ("overshoot", "lo", "hi"))
+        bars_tg(ax, np.arange(len(levels)), v, lo, hi, width=0.27)
+        ax.axhline(0, color=SUBTLE, lw=1)
+        ax.set_xticks(np.arange(len(levels)), names, fontsize=9)
+        ax.set_xlabel(lab)
+        pct(ax)
+    axes[0].set_ylabel("overshoot, % del salto")
+    axes[0].set_ylim(-8, 66)
+    axes[1].legend(loc="upper right", ncol=3, fontsize=8, columnspacing=0.8)
+    fig.suptitle("L'overshoot per gruppo di trader, in ogni categoria e in ogni anno", fontweight="bold", color=TEXT)
+    save(fig, "f2_categories")
+
+
 def f3_giveback_curve():
     c = pd.read_csv(LD + "r11_giveback_curve.csv")
     x, y = c.giveback.values * 100, c.density.values
@@ -580,7 +606,7 @@ def f5_fade():
 
 ALL = {"ex1": ex1_example, "m_calibration": m_calibration, "pipeline": bg_pipeline, "t_dataset": t_dataset,
        "d_stats": d_stats, "m_definition": m_definition, "m_params": m_params, "m_crypto": m_crypto,
-       "f1_hero": f1_hero, "f2_counts": f2_counts, "f2_robustness": f2_robustness,
+       "f1_hero": f1_hero, "f2_counts": f2_counts, "f2_robustness": f2_robustness, "f2_categories": f2_categories,
        "f3_giveback_curve": f3_giveback_curve, "f3": f3_decay, "f2_accuracy": f2_accuracy, "f5": f5_fade}
 
 
